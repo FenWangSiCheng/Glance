@@ -460,28 +460,7 @@ struct CalendarSettingsTab: View {
                                 }
                             }
                             
-                            Text("不选择任何日历将同步所有日历")
-                                .font(.caption)
-                                .foregroundStyle(Color(.tertiaryLabelColor))
-                        }
-                        
-                        // Days ahead picker
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("同步天数")
-                                .font(.subheadline)
-                                .foregroundStyle(Color(.secondaryLabelColor))
-                            
-                            Picker("", selection: $viewModel.calendarDaysAhead) {
-                                Text("1 天").tag(1)
-                                Text("3 天").tag(3)
-                                Text("7 天").tag(7)
-                                Text("14 天").tag(14)
-                            }
-                            .pickerStyle(.radioGroup)
-                            .accessibilityLabel("同步天数")
-                            .accessibilityValue("\(viewModel.calendarDaysAhead) 天")
-                            
-                            Text("从今天开始，向后同步指定天数的日历事件")
+                            Text("不选择任何日历将同步所有日历的今天事件")
                                 .font(.caption)
                                 .foregroundStyle(Color(.tertiaryLabelColor))
                         }

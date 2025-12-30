@@ -16,9 +16,10 @@ struct TodoItem: Identifiable, Codable, Hashable {
     let priority: String?
     let startDate: String?
     let dueDate: String?
-    let eventId: String?      // 日历事件 ID，用于去重
-    let eventStartTime: Date? // 事件开始时间
-    let eventEndTime: Date?   // 事件结束时间
+    let eventId: String?       // 日历事件 ID，用于去重
+    let eventStartTime: Date?  // 事件开始时间
+    let eventEndTime: Date?    // 事件结束时间
+    let eventLocation: String? // 事件地点
 
     init(
         id: UUID = UUID(),
@@ -32,7 +33,8 @@ struct TodoItem: Identifiable, Codable, Hashable {
         dueDate: String? = nil,
         eventId: String? = nil,
         eventStartTime: Date? = nil,
-        eventEndTime: Date? = nil
+        eventEndTime: Date? = nil,
+        eventLocation: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -46,6 +48,7 @@ struct TodoItem: Identifiable, Codable, Hashable {
         self.eventId = eventId
         self.eventStartTime = eventStartTime
         self.eventEndTime = eventEndTime
+        self.eventLocation = eventLocation
     }
 
     /// 便捷初始化器 - 创建 Backlog 待办
@@ -81,22 +84,15 @@ struct TodoItem: Identifiable, Codable, Hashable {
         endTime: Date,
         location: String? = nil
     ) -> TodoItem {
-        // 构建标题：包含时间信息
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        let timeRange = "\(formatter.string(from: startTime))-\(formatter.string(from: endTime))"
-        
-        var fullTitle = "\(timeRange) \(title)"
-        if let loc = location, !loc.isEmpty {
-            fullTitle += " @ \(loc)"
-        }
-        
+        // 只保留标题，不在标题中包含时间和地点
+        // 时间和地点信息会在 UI 的第二行显示
         return TodoItem(
-            title: fullTitle,
+            title: title,
             source: .calendar,
             eventId: eventId,
             eventStartTime: startTime,
-            eventEndTime: endTime
+            eventEndTime: endTime,
+            eventLocation: location
         )
     }
 }

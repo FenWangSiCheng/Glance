@@ -136,7 +136,7 @@ actor CalendarService {
     /// 获取指定日历的今日及未来事件
     func fetchEvents(
         calendarIds: [String]?,  // nil = 所有日历
-        daysAhead: Int = 7
+        daysAhead: Int = 1
     ) async throws -> [CalendarEvent] {
         let calendars: [EKCalendar]?
         if let ids = calendarIds, !ids.isEmpty {
@@ -146,8 +146,15 @@ actor CalendarService {
             calendars = nil
         }
         
-        let startDate = Calendar.current.startOfDay(for: Date())
-        let endDate = Calendar.current.date(byAdding: .day, value: daysAhead, to: startDate)!
+        let calendar = Calendar.current
+        let startDate = calendar.startOfDay(for: Date())
+        // 如果是当天（daysAhead = 1），获取到今天23:59:59
+        let endDate: Date
+        if daysAhead == 1 {
+            endDate = calendar.date(bySettingHour: 23, minute: 59, second: 59, of: Date()) ?? calendar.date(byAdding: .day, value: 1, to: startDate)!
+        } else {
+            endDate = calendar.date(byAdding: .day, value: daysAhead, to: startDate)!
+        }
         
         let predicate = eventStore.predicateForEvents(
             withStart: startDate,

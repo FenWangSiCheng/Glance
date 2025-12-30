@@ -60,7 +60,7 @@ class AppViewModel: ObservableObject {
         self.selectedModel = UserDefaults.standard.string(forKey: "selectedModel") ?? "deepseek-chat"
         self.calendarEnabled = UserDefaults.standard.bool(forKey: "calendarEnabled")
         self.selectedCalendarIds = UserDefaults.standard.stringArray(forKey: "selectedCalendarIds") ?? []
-        self.calendarDaysAhead = UserDefaults.standard.integer(forKey: "calendarDaysAhead") != 0 ? UserDefaults.standard.integer(forKey: "calendarDaysAhead") : 7
+        self.calendarDaysAhead = UserDefaults.standard.integer(forKey: "calendarDaysAhead") != 0 ? UserDefaults.standard.integer(forKey: "calendarDaysAhead") : 1
         self.todoItems = Self.loadTodoItems()
         
         // Check calendar access status

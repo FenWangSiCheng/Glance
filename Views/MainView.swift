@@ -444,12 +444,12 @@ struct TodoItemRow: View {
                 .opacity(isHovering ? 1 : 0)
             }
 
-            // Second row: issueKey + priority + dates
+            // Second row: issueKey + priority + dates OR calendar time + location
             HStack(alignment: .center, spacing: 8) {
-                // Issue key badge
+                // Issue key/Calendar badge
                 issueKeyBadge
 
-                // Priority badge
+                // Priority badge (Backlog only)
                 if let priority = item.priority {
                     Text("优先级: \(priority)")
                         .font(.caption)
@@ -460,7 +460,7 @@ struct TodoItemRow: View {
                         .background(priorityBackgroundColor(priority), in: RoundedRectangle(cornerRadius: 4))
                 }
 
-                // Date info
+                // Date info (Backlog)
                 if item.source == .backlog {
                     if let startDate = item.startDate {
                         Text("开始: \(formatDate(startDate))")
@@ -472,6 +472,25 @@ struct TodoItemRow: View {
                         Text("截止: \(formatDate(dueDate))")
                             .font(.caption)
                             .foregroundStyle(Color(.secondaryLabelColor))
+                    }
+                }
+                
+                // Time and location info (Calendar)
+                if item.source == .calendar {
+                    if let startTime = item.eventStartTime, let endTime = item.eventEndTime {
+                        Text("\(formatTime(startTime))-\(formatTime(endTime))")
+                            .font(.caption)
+                            .foregroundStyle(Color(.secondaryLabelColor))
+                    }
+                    
+                    if let location = item.eventLocation, !location.isEmpty {
+                        HStack(spacing: 2) {
+                            Image(systemName: "location.fill")
+                                .font(.caption2)
+                            Text(location)
+                                .font(.caption)
+                        }
+                        .foregroundStyle(Color(.secondaryLabelColor))
                     }
                 }
 
@@ -578,6 +597,12 @@ struct TodoItemRow: View {
         let outputFormatter = DateFormatter()
         outputFormatter.dateFormat = "MM/dd"
         return outputFormatter.string(from: date)
+    }
+    
+    private func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
     }
 
     private func dueDateColor(_ dateString: String) -> Color {
