@@ -300,7 +300,7 @@ struct AISettingsTab: View {
             } header: {
                 HStack(spacing: 8) {
                     Image(systemName: "cpu.fill")
-                        .foregroundStyle(Color(.systemPurple))
+                        .foregroundStyle(Color.accentColor)
                         .accessibilityHidden(true)
                     Text("DeepSeek AI 配置")
                         .font(.headline)

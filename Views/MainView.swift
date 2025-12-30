@@ -166,6 +166,7 @@ struct SidebarView: View {
 struct TodosDetailView: View {
     @ObservedObject var viewModel: AppViewModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var editingTodo: TodoItem?
     @State private var editingText: String = ""
     @State private var newTodoText: String = ""
@@ -279,7 +280,7 @@ struct TodosDetailView: View {
 
     private var generatingOverlay: some View {
         ZStack {
-            Color(.windowBackgroundColor).opacity(0.7)
+            Color(.windowBackgroundColor).opacity(reduceTransparency ? 1.0 : 0.7)
 
             VStack(spacing: 16) {
                 ProgressView()
@@ -293,8 +294,18 @@ struct TodosDetailView: View {
                     .foregroundStyle(Color(.secondaryLabelColor))
             }
             .padding(32)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-            .shadow(color: Color(.shadowColor).opacity(0.2), radius: 16, x: 0, y: 8)
+            .background(
+                reduceTransparency
+                    ? AnyShapeStyle(Color(.windowBackgroundColor))
+                    : AnyShapeStyle(.regularMaterial),
+                in: RoundedRectangle(cornerRadius: 16)
+            )
+            .shadow(
+                color: reduceTransparency ? .clear : Color(.shadowColor).opacity(0.2),
+                radius: reduceTransparency ? 0 : 16,
+                x: 0,
+                y: reduceTransparency ? 0 : 8
+            )
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("正在生成待办清单，请稍候")
