@@ -94,6 +94,7 @@ extension KeychainHelper {
     enum Keys {
         static let backlogAPIKey = "backlog_api_key"
         static let openAIAPIKey = "openai_api_key"
+        static let redmineAPIKey = "redmine_api_key"
     }
 
     static var backlogAPIKey: String? {
@@ -114,6 +115,17 @@ extension KeychainHelper {
                 try? save(key: Keys.openAIAPIKey, value: value)
             } else {
                 try? delete(key: Keys.openAIAPIKey)
+            }
+        }
+    }
+
+    static var redmineAPIKey: String? {
+        get { get(key: Keys.redmineAPIKey) }
+        set {
+            if let value = newValue {
+                try? save(key: Keys.redmineAPIKey, value: value)
+            } else {
+                try? delete(key: Keys.redmineAPIKey)
             }
         }
     }

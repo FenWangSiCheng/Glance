@@ -2,8 +2,20 @@ import Foundation
 import SwiftUI
 import AppKit
 
+// MARK: - Navigation State
+
+enum NavigationDestination: Hashable {
+    case todos
+    case timeEntry
+}
+
 @MainActor
 class AppViewModel: ObservableObject {
+    // Shared instance for Settings scene
+    static let shared = AppViewModel()
+
+    // Navigation
+    @Published var selectedDestination: NavigationDestination = .todos
     @Published var backlogURL: String {
         didSet { UserDefaults.standard.set(backlogURL, forKey: "backlogURL") }
     }
@@ -25,7 +37,7 @@ class AppViewModel: ObservableObject {
         didSet { UserDefaults.standard.set(calendarEnabled, forKey: "calendarEnabled") }
     }
     @Published var selectedCalendarIds: [String] {
-        didSet { 
+        didSet {
             UserDefaults.standard.set(selectedCalendarIds, forKey: "selectedCalendarIds")
         }
     }
@@ -33,6 +45,17 @@ class AppViewModel: ObservableObject {
         didSet { UserDefaults.standard.set(calendarDaysAhead, forKey: "calendarDaysAhead") }
     }
     @Published var calendarAccessGranted: Bool = false
+
+    // Redmine settings
+    @Published var redmineURL: String {
+        didSet { UserDefaults.standard.set(redmineURL, forKey: "redmineURL") }
+    }
+    @Published var redmineAPIKey: String {
+        didSet { KeychainHelper.redmineAPIKey = redmineAPIKey }
+    }
+
+    // Redmine state
+    @Published var pendingTimeEntries: [PendingTimeEntry] = []
 
     @Published var todoItems: [TodoItem] = [] {
         didSet { saveTodoItems() }
@@ -52,6 +75,10 @@ class AppViewModel: ObservableObject {
         !backlogURL.isEmpty && !backlogAPIKey.isEmpty && !openAIAPIKey.isEmpty
     }
 
+    var isRedmineConfigured: Bool {
+        !redmineURL.isEmpty && !redmineAPIKey.isEmpty
+    }
+
     init() {
         self.backlogURL = UserDefaults.standard.string(forKey: "backlogURL") ?? ""
         self.backlogAPIKey = KeychainHelper.backlogAPIKey ?? ""
@@ -61,8 +88,10 @@ class AppViewModel: ObservableObject {
         self.calendarEnabled = UserDefaults.standard.bool(forKey: "calendarEnabled")
         self.selectedCalendarIds = UserDefaults.standard.stringArray(forKey: "selectedCalendarIds") ?? []
         self.calendarDaysAhead = UserDefaults.standard.integer(forKey: "calendarDaysAhead") != 0 ? UserDefaults.standard.integer(forKey: "calendarDaysAhead") : 1
+        self.redmineURL = UserDefaults.standard.string(forKey: "redmineURL") ?? "https://fenrir-inc.cn/redmine"
+        self.redmineAPIKey = KeychainHelper.redmineAPIKey ?? ""
         self.todoItems = Self.loadTodoItems()
-        
+
         // Check calendar access status
         Task {
             await checkCalendarAccessStatus()
@@ -357,5 +386,93 @@ class AppViewModel: ObservableObject {
     func clearError() {
         errorMessage = nil
         showingError = false
+    }
+
+    // MARK: - Redmine Methods
+
+    func testRedmineConnection() async -> Bool {
+        guard isRedmineConfigured else {
+            return false
+        }
+
+        do {
+            let service = RedmineService(baseURL: redmineURL, apiKey: redmineAPIKey)
+            _ = try await service.testConnection()
+            return true
+        } catch {
+            print("❌ [AppViewModel] Redmine connection test failed: \(error)")
+            return false
+        }
+    }
+
+    func fetchRedmineProjects() async throws -> [RedmineProject] {
+        guard isRedmineConfigured else {
+            throw RedmineService.RedmineError.invalidConfiguration
+        }
+
+        let service = RedmineService(baseURL: redmineURL, apiKey: redmineAPIKey)
+        return try await service.fetchProjects()
+    }
+
+    func fetchRedmineTrackers(projectId: Int) async throws -> [RedmineTracker] {
+        guard isRedmineConfigured else {
+            throw RedmineService.RedmineError.invalidConfiguration
+        }
+
+        let service = RedmineService(baseURL: redmineURL, apiKey: redmineAPIKey)
+        return try await service.fetchTrackers(projectId: projectId)
+    }
+
+    func fetchRedmineIssues(projectId: Int, trackerId: Int) async throws -> [RedmineIssue] {
+        guard isRedmineConfigured else {
+            throw RedmineService.RedmineError.invalidConfiguration
+        }
+
+        let service = RedmineService(baseURL: redmineURL, apiKey: redmineAPIKey)
+        return try await service.fetchIssues(projectId: projectId, trackerId: trackerId)
+    }
+
+    func fetchRedmineActivities() async throws -> [RedmineActivity] {
+        guard isRedmineConfigured else {
+            throw RedmineService.RedmineError.invalidConfiguration
+        }
+
+        let service = RedmineService(baseURL: redmineURL, apiKey: redmineAPIKey)
+        return try await service.fetchActivities()
+    }
+
+    func addPendingTimeEntry(_ entry: PendingTimeEntry) {
+        pendingTimeEntries.append(entry)
+    }
+
+    func removePendingTimeEntry(id: UUID) {
+        pendingTimeEntries.removeAll { $0.id == id }
+    }
+
+    func clearPendingTimeEntries() {
+        pendingTimeEntries.removeAll()
+    }
+
+    func submitAllPendingTimeEntries() async -> (success: Int, failed: Int) {
+        guard isRedmineConfigured else {
+            return (0, pendingTimeEntries.count)
+        }
+
+        let service = RedmineService(baseURL: redmineURL, apiKey: redmineAPIKey)
+        var successCount = 0
+        var failedEntries: [PendingTimeEntry] = []
+
+        for entry in pendingTimeEntries {
+            do {
+                try await service.submitTimeEntry(entry.timeEntry)
+                successCount += 1
+            } catch {
+                print("❌ [AppViewModel] Failed to submit time entry: \(error)")
+                failedEntries.append(entry)
+            }
+        }
+
+        pendingTimeEntries = failedEntries
+        return (successCount, failedEntries.count)
     }
 }

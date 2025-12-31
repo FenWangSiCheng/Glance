@@ -5,6 +5,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     case backlog = "Backlog"
     case calendar = "日历"
     case ai = "AI 模型"
+    case redmine = "Redmine"
 
     var id: String { rawValue }
 
@@ -13,6 +14,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .backlog: return "tray.full.fill"
         case .calendar: return "calendar"
         case .ai: return "cpu.fill"
+        case .redmine: return "clock.fill"
         }
     }
 
@@ -21,6 +23,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .backlog: return "Backlog 连接设置"
         case .calendar: return "日历同步设置"
         case .ai: return "AI 模型设置"
+        case .redmine: return "Redmine 工时设置"
         }
     }
 }
@@ -59,6 +62,13 @@ struct SettingsView: View {
                     }
                     .tag(SettingsTab.ai)
                     .accessibilityLabel(SettingsTab.ai.accessibilityLabel)
+
+                RedmineSettingsTab(viewModel: viewModel)
+                    .tabItem {
+                        Label("Redmine", systemImage: "clock.fill")
+                    }
+                    .tag(SettingsTab.redmine)
+                    .accessibilityLabel(SettingsTab.redmine.accessibilityLabel)
             }
             .padding(20)
 
@@ -68,6 +78,9 @@ struct SettingsView: View {
             footerView
         }
         .frame(width: 520, height: 480)
+        .onExitCommand {
+            dismiss()
+        }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("设置窗口")
     }
@@ -552,6 +565,120 @@ struct CalendarSettingsTab: View {
             let calendars = await service.fetchCalendars()
             await MainActor.run {
                 availableCalendars = Dictionary(uniqueKeysWithValues: calendars.map { ($0.calendarIdentifier, $0.title) })
+            }
+        }
+    }
+}
+
+// MARK: - Redmine Settings Tab
+struct RedmineSettingsTab: View {
+    @ObservedObject var viewModel: AppViewModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isTesting = false
+    @State private var testResult: Bool?
+
+    private var standardAnimation: Animation? {
+        reduceMotion ? nil : .spring(response: 0.3)
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Redmine URL")
+                        .font(.subheadline)
+                        .foregroundStyle(Color(.secondaryLabelColor))
+                    TextField("https://your-redmine.com/redmine", text: $viewModel.redmineURL)
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityLabel("Redmine URL")
+                        .accessibilityHint("输入 Redmine 服务器地址")
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("API Key")
+                        .font(.subheadline)
+                        .foregroundStyle(Color(.secondaryLabelColor))
+                    SecureField("输入 Redmine API Key", text: $viewModel.redmineAPIKey)
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityLabel("Redmine API Key")
+                        .accessibilityHint("输入从 Redmine 获取的 API 密钥")
+                }
+            } header: {
+                HStack(spacing: 8) {
+                    Image(systemName: "clock.fill")
+                        .foregroundStyle(Color(.systemTeal))
+                        .accessibilityHidden(true)
+                    Text("Redmine 工时配置")
+                        .font(.headline)
+                        .foregroundStyle(Color(.labelColor))
+                }
+                .padding(.bottom, 8)
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isHeader)
+            } footer: {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("可在 Redmine 个人设置 → API 访问密钥中获取 API Key")
+                        .font(.caption)
+                        .foregroundStyle(Color(.secondaryLabelColor))
+
+                    connectionTestButton
+                }
+                .padding(.top, 8)
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private var connectionTestButton: some View {
+        HStack(spacing: 12) {
+            Button {
+                testConnection()
+            } label: {
+                HStack(spacing: 6) {
+                    if isTesting {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                            .accessibilityHidden(true)
+                    } else {
+                        Image(systemName: "network")
+                            .accessibilityHidden(true)
+                    }
+                    Text("测试连接")
+                }
+                .frame(minHeight: 32)
+            }
+            .buttonStyle(.bordered)
+            .disabled(viewModel.redmineURL.isEmpty || viewModel.redmineAPIKey.isEmpty || isTesting)
+            .accessibilityLabel("测试 Redmine 连接")
+            .accessibilityHint(isTesting ? "正在测试中" : "验证 Redmine API 配置是否正确")
+
+            if let result = testResult {
+                HStack(spacing: 4) {
+                    Image(systemName: result ? "checkmark.circle.fill" : "xmark.circle.fill")
+                        .foregroundStyle(result ? Color(.systemGreen) : Color(.systemRed))
+                        .accessibilityHidden(true)
+                    Text(result ? "连接成功" : "连接失败")
+                        .font(.caption)
+                        .foregroundStyle(result ? Color(.systemGreen) : Color(.systemRed))
+                }
+                .transition(.opacity.combined(with: .scale))
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(result ? "连接测试成功" : "连接测试失败")
+            }
+        }
+    }
+
+    private func testConnection() {
+        isTesting = true
+        testResult = nil
+
+        Task {
+            let result = await viewModel.testRedmineConnection()
+            await MainActor.run {
+                withAnimation(standardAnimation) {
+                    testResult = result
+                }
+                isTesting = false
             }
         }
     }

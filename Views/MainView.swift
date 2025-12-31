@@ -3,13 +3,13 @@ import AppKit
 
 // MARK: - Main View
 struct MainView: View {
-    @StateObject private var viewModel = AppViewModel()
+    @EnvironmentObject var viewModel: AppViewModel
 
     var body: some View {
         NavigationSplitView {
             SidebarView(viewModel: viewModel)
         } detail: {
-            TodosDetailView(viewModel: viewModel)
+            detailView
         }
         .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 800, minHeight: 560)
@@ -24,6 +24,16 @@ struct MainView: View {
             Text(viewModel.errorMessage ?? "发生未知错误")
         }
     }
+
+    @ViewBuilder
+    private var detailView: some View {
+        switch viewModel.selectedDestination {
+        case .todos:
+            TodosDetailView(viewModel: viewModel)
+        case .timeEntry:
+            RedmineTimeEntryView(viewModel: viewModel)
+        }
+    }
 }
 
 // MARK: - Sidebar
@@ -33,64 +43,46 @@ struct SidebarView: View {
     var body: some View {
         VStack(spacing: 0) {
             // Header
-            VStack(spacing: 16) {
-                Image(systemName: "checklist")
-                    .font(.system(size: 48))
-                    .foregroundStyle(Color.accentColor)
-                    .accessibilityHidden(true)
-
-                Text("Glance")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-            }
-            .padding(.top, 32)
-            .padding(.bottom, 24)
+            Text("Glance")
+                .font(.title2)
+                .fontWeight(.semibold)
+                .padding(.top, 32)
+                .padding(.bottom, 24)
 
             Divider()
                 .padding(.horizontal, 16)
 
-            Spacer()
-
-            // Main action button
-            VStack(spacing: 16) {
-                Button {
-                    Task {
-                        await viewModel.fetchAndGenerateTodos()
-                    }
-                } label: {
-                    HStack(spacing: 8) {
-                        if viewModel.isGeneratingTodos {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                                .accessibilityHidden(true)
-                        } else {
-                            Image(systemName: "sparkles")
-                                .accessibilityHidden(true)
-                        }
-                        Text(viewModel.isGeneratingTodos ? "生成中..." : "获取票据并生成待办")
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 40)
+            // Navigation List
+            VStack(spacing: 4) {
+                NavigationRow(
+                    icon: "checklist",
+                    title: "待办清单",
+                    badge: viewModel.todoItems.isEmpty ? nil : "\(viewModel.todoItems.count)",
+                    isSelected: viewModel.selectedDestination == .todos
+                ) {
+                    viewModel.selectedDestination = .todos
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(!viewModel.isConfigured || viewModel.isGeneratingTodos)
-                .accessibilityLabel("获取票据并生成待办清单")
-                .accessibilityHint(viewModel.isGeneratingTodos ? "正在生成中" : "从 Backlog 获取票据并使用 AI 生成待办清单")
 
-                if !viewModel.todoItems.isEmpty {
-                    Text("\(viewModel.todoItems.count) 项待办")
-                        .font(.caption)
-                        .foregroundStyle(Color(.secondaryLabelColor))
+                if viewModel.isRedmineConfigured {
+                    NavigationRow(
+                        icon: "clock.fill",
+                        title: "Redmine 工时",
+                        badge: viewModel.pendingTimeEntries.isEmpty ? nil : "\(viewModel.pendingTimeEntries.count)",
+                        badgeColor: Color(.systemOrange),
+                        isSelected: viewModel.selectedDestination == .timeEntry
+                    ) {
+                        viewModel.selectedDestination = .timeEntry
+                    }
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 12)
+            .padding(.top, 16)
 
             Spacer()
 
             // Footer
             sidebarFooter
         }
-        .listStyle(.sidebar)
         .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 280)
         .toolbar {
             ToolbarItem(placement: .automatic) {
@@ -192,6 +184,29 @@ struct TodosDetailView: View {
         .toolbar {
             ToolbarItem(placement: .automatic) {
                 Button {
+                    Task {
+                        await viewModel.fetchAndGenerateTodos()
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        if viewModel.isGeneratingTodos {
+                            ProgressView()
+                                .controlSize(.small)
+                                .accessibilityHidden(true)
+                        } else {
+                            Image(systemName: "sparkles")
+                                .accessibilityHidden(true)
+                        }
+                        Text(viewModel.isGeneratingTodos ? "生成中..." : "同步")
+                    }
+                }
+                .disabled(!viewModel.isConfigured || viewModel.isGeneratingTodos)
+                .accessibilityLabel("同步票据")
+                .accessibilityHint("从 Backlog 获取票据并使用 AI 生成待办清单")
+                .help("同步票据并生成待办")
+            }
+            ToolbarItem(placement: .automatic) {
+                Button {
                     showingClearAllConfirmation = true
                 } label: {
                     Image(systemName: "trash")
@@ -275,7 +290,7 @@ struct TodosDetailView: View {
         EmptyStateView(
             icon: "checklist",
             title: "暂无待办事项",
-            subtitle: "点击左侧「获取票据并生成待办」按钮开始"
+            subtitle: "点击右上角「同步」按钮获取票据"
         )
     }
 
@@ -671,5 +686,57 @@ struct EmptyStateView: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(title)，\(subtitle)")
         .accessibilityAddTraits(.isHeader)
+    }
+}
+
+// MARK: - Navigation Row
+struct NavigationRow: View {
+    let icon: String
+    let title: String
+    var badge: String? = nil
+    var badgeColor: Color = Color(.systemBlue)
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.body)
+                    .foregroundStyle(isSelected ? Color.accentColor : Color(.secondaryLabelColor))
+                    .frame(width: 20)
+                    .accessibilityHidden(true)
+
+                Text(title)
+                    .font(.body)
+                    .foregroundStyle(isSelected ? Color(.labelColor) : Color(.secondaryLabelColor))
+
+                Spacer()
+
+                if let badge = badge {
+                    Text(badge)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(badgeColor, in: Capsule())
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .frame(minHeight: 44)
+            .background(
+                isSelected
+                    ? Color.accentColor.opacity(0.15)
+                    : Color.clear,
+                in: RoundedRectangle(cornerRadius: 6)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityValue(badge.map { "\($0) 项" } ?? "")
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 }
