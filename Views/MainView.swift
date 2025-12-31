@@ -148,9 +148,10 @@ struct SidebarView: View {
 
     private var connectionStatus: some View {
         HStack(spacing: 6) {
-            Circle()
-                .fill(Color(.systemGreen))
-                .frame(width: 8, height: 8)
+            // Use checkmark icon instead of plain circle for colorblind accessibility
+            Image(systemName: "checkmark.circle.fill")
+                .font(.caption)
+                .foregroundStyle(Color(.systemGreen))
                 .accessibilityHidden(true)
             Text("已连接")
                 .font(.caption)
@@ -172,14 +173,12 @@ struct TodosDetailView: View {
     @State private var newTodoText: String = ""
     @FocusState private var isNewTodoFocused: Bool
 
-    /// 根据 Reduce Motion 设置选择动画
     private var standardAnimation: Animation? {
         reduceMotion ? nil : .spring(response: 0.3)
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            // 新增待办输入框
             addTodoBar
 
             if viewModel.todoItems.isEmpty && newTodoText.isEmpty {
@@ -327,7 +326,6 @@ struct TodoItemRow: View {
 
     @State private var isHovering = false
 
-    /// 根据 Reduce Motion 设置选择动画
     private var standardAnimation: Animation? {
         reduceMotion ? nil : .spring(response: 0.3)
     }
@@ -411,14 +409,15 @@ struct TodoItemRow: View {
                 Spacer()
 
                 // Actions - always reserve space, control visibility with opacity
-                HStack(spacing: 8) {
+                HStack(spacing: 0) {
                     // Edit button
                     Button {
                         onStartEdit()
                     } label: {
                         Image(systemName: "pencil")
                             .foregroundStyle(Color(.secondaryLabelColor))
-                            .frame(minWidth: 28, minHeight: 28)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .help("编辑待办")
@@ -431,7 +430,8 @@ struct TodoItemRow: View {
                         } label: {
                             Image(systemName: "arrow.up.right.square")
                                 .foregroundStyle(Color(.secondaryLabelColor))
-                                .frame(minWidth: 28, minHeight: 28)
+                                .frame(minWidth: 44, minHeight: 44)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .help("在浏览器中打开")
@@ -446,7 +446,8 @@ struct TodoItemRow: View {
                     } label: {
                         Image(systemName: "trash")
                             .foregroundStyle(Color(.systemRed).opacity(0.8))
-                            .frame(minWidth: 28, minHeight: 28)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .help("删除待办")
@@ -518,46 +519,34 @@ struct TodoItemRow: View {
                 Button {
                     NSWorkspace.shared.open(url)
                 } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "tray.full.fill")
-                            .font(.caption2)
-                        Text(issueKey)
-                            .font(.caption)
-                            .fontWeight(.medium)
-                    }
-                    .foregroundStyle(.blue)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.blue.opacity(0.1), in: RoundedRectangle(cornerRadius: 4))
+                    Text(issueKey)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.blue)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.blue.opacity(0.2), in: RoundedRectangle(cornerRadius: 4))
                 }
                 .buttonStyle(.plain)
                 .help("在浏览器中打开票据")
                 .accessibilityLabel("打开票据 \(issueKey)")
             }
         case .calendar:
-            HStack(spacing: 4) {
-                Image(systemName: "calendar")
-                    .font(.caption2)
-                Text("日历")
-                    .font(.caption)
-                    .fontWeight(.medium)
-            }
-            .foregroundStyle(.orange)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 4))
+            Text("日历")
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundStyle(.orange)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color.orange.opacity(0.2), in: RoundedRectangle(cornerRadius: 4))
         case .custom:
-            HStack(spacing: 4) {
-                Image(systemName: "square.and.pencil")
-                    .font(.caption2)
-                Text("自定义")
-                    .font(.caption)
-                    .fontWeight(.medium)
-            }
-            .foregroundStyle(Color(.secondaryLabelColor))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(Color(.separatorColor).opacity(0.3), in: RoundedRectangle(cornerRadius: 4))
+            Text("自定义")
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundStyle(Color(.secondaryLabelColor))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color(.secondaryLabelColor).opacity(0.2), in: RoundedRectangle(cornerRadius: 4))
         }
     }
 
@@ -650,6 +639,7 @@ struct EmptyStateView: View {
             Text(title)
                 .font(.headline)
                 .foregroundStyle(Color(.secondaryLabelColor))
+                .accessibilityAddTraits(.isHeader)
 
             Text(subtitle)
                 .font(.subheadline)
@@ -659,5 +649,6 @@ struct EmptyStateView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(title)，\(subtitle)")
+        .accessibilityAddTraits(.isHeader)
     }
 }

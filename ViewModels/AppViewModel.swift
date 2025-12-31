@@ -69,7 +69,7 @@ class AppViewModel: ObservableObject {
         }
     }
 
-    // MARK: - 待办事项持久化
+    // MARK: - Todo Persistence
 
     private static let todoItemsKey = "todoItems"
 
@@ -80,7 +80,7 @@ class AppViewModel: ObservableObject {
         do {
             return try JSONDecoder().decode([TodoItem].self, from: data)
         } catch {
-            print("❌ [AppViewModel] 加载待办事项失败: \(error)")
+            print("❌ [AppViewModel] Failed to load todo items: \(error)")
             return []
         }
     }
@@ -90,24 +90,17 @@ class AppViewModel: ObservableObject {
             let data = try JSONEncoder().encode(todoItems)
             UserDefaults.standard.set(data, forKey: Self.todoItemsKey)
         } catch {
-            print("❌ [AppViewModel] 保存待办事项失败: \(error)")
+            print("❌ [AppViewModel] Failed to save todo items: \(error)")
         }
     }
 
-    /// 合并待办事项
-    /// - 保留所有自定义待办
-    /// - Backlog 待办根据 issueKey 匹配，保留已完成状态
-    /// - Calendar 待办根据 eventId 匹配，保留已完成状态
-    /// - 新的 Backlog 和 Calendar 待办添加到列表
     private func mergeTodoItems(
         existing: [TodoItem],
         newBacklogItems: [TodoItem],
         newCalendarItems: [TodoItem]
     ) -> [TodoItem] {
-        // 1. 保留所有自定义待办
         var result = existing.filter { $0.source == .custom }
 
-        // 2. 建立现有 Backlog 待办的索引 (issueKey -> TodoItem)
         var existingBacklogMap: [String: TodoItem] = [:]
         for item in existing where item.source == .backlog {
             if let key = item.issueKey {
@@ -115,52 +108,43 @@ class AppViewModel: ObservableObject {
             }
         }
 
-        // 3. 处理新生成的 Backlog 待办
         for newItem in newBacklogItems {
             guard let issueKey = newItem.issueKey else { continue }
 
             if let existingItem = existingBacklogMap[issueKey] {
-                // 已存在：保留完成状态，更新标题
                 var updatedItem = newItem
                 updatedItem.isCompleted = existingItem.isCompleted
                 result.append(updatedItem)
                 existingBacklogMap.removeValue(forKey: issueKey)
             } else {
-                // 新增的待办
                 result.append(newItem)
             }
         }
 
-        // 4. 保留那些在 Backlog 中已不存在但用户标记为完成的待办（可选）
         for (_, item) in existingBacklogMap where item.isCompleted {
             result.append(item)
         }
-        
-        // 5. 建立现有 Calendar 待办的索引 (eventId -> TodoItem)
+
         var existingCalendarMap: [String: TodoItem] = [:]
         for item in existing where item.source == .calendar {
             if let eventId = item.eventId {
                 existingCalendarMap[eventId] = item
             }
         }
-        
-        // 6. 处理新的 Calendar 待办
+
         for newItem in newCalendarItems {
             guard let eventId = newItem.eventId else { continue }
-            
+
             if let existingItem = existingCalendarMap[eventId] {
-                // 已存在：保留完成状态，更新标题
                 var updatedItem = newItem
                 updatedItem.isCompleted = existingItem.isCompleted
                 result.append(updatedItem)
                 existingCalendarMap.removeValue(forKey: eventId)
             } else {
-                // 新增的待办
                 result.append(newItem)
             }
         }
-        
-        // 7. 保留那些在 Calendar 中已不存在但用户标记为完成的待办
+
         for (_, item) in existingCalendarMap where item.isCompleted {
             result.append(item)
         }
@@ -168,12 +152,11 @@ class AppViewModel: ObservableObject {
         return result
     }
 
-    /// 一键获取票据并生成待办清单
     func fetchAndGenerateTodos() async {
-        print("🚀 [AppViewModel] fetchAndGenerateTodos 开始")
+        print("🚀 [AppViewModel] fetchAndGenerateTodos started")
 
         guard isConfigured else {
-            print("❌ [AppViewModel] 配置不完整，终止")
+            print("❌ [AppViewModel] Configuration incomplete, aborting")
             showError("请先配置 API 信息")
             return
         }
@@ -184,26 +167,23 @@ class AppViewModel: ObservableObject {
         do {
             var backlogTodos: [TodoItem] = []
             var calendarTodos: [TodoItem] = []
-            
-            // 1. 获取 Backlog 票据
-            print("📋 [AppViewModel] 正在获取 Backlog 票据...")
+
+            print("📋 [AppViewModel] Fetching Backlog issues...")
             let backlogService = BacklogService(backlogURL: backlogURL, apiKey: backlogAPIKey)
             let issues = try await backlogService.fetchMyIssues()
-            print("✅ [AppViewModel] 获取到 \(issues.count) 个票据")
-            
-            // 2. 获取日历事件（如果启用）
+            print("✅ [AppViewModel] Fetched \(issues.count) issues")
+
             var calendarEvents: [CalendarEvent] = []
             if calendarEnabled && calendarAccessGranted {
-                print("📅 [AppViewModel] 正在获取日历事件...")
+                print("📅 [AppViewModel] Fetching calendar events...")
                 let calendarService = CalendarService()
                 do {
                     calendarEvents = try await calendarService.fetchEvents(
                         calendarIds: selectedCalendarIds.isEmpty ? nil : selectedCalendarIds,
                         daysAhead: calendarDaysAhead
                     )
-                    print("✅ [AppViewModel] 获取到 \(calendarEvents.count) 个日历事件")
-                    
-                    // 转换日历事件为 TodoItem
+                    print("✅ [AppViewModel] Fetched \(calendarEvents.count) calendar events")
+
                     calendarTodos = calendarEvents.map { event in
                         TodoItem.calendar(
                             title: event.title,
@@ -214,20 +194,18 @@ class AppViewModel: ObservableObject {
                         )
                     }
                 } catch {
-                    print("⚠️ [AppViewModel] 获取日历事件失败: \(error.localizedDescription)")
+                    print("⚠️ [AppViewModel] Failed to fetch calendar events: \(error.localizedDescription)")
                 }
             }
 
-            // 3. 如果既没有票据也没有日历事件，提示用户
             if issues.isEmpty && calendarEvents.isEmpty {
                 showError("暂无分配给您的票据或日历事件")
                 isGeneratingTodos = false
                 return
             }
 
-            // 4. 生成待办清单（使用 AI 排序）
             if !issues.isEmpty {
-                print("🤖 [AppViewModel] 正在生成待办清单...")
+                print("🤖 [AppViewModel] Generating todo list...")
                 let aiService = AIService(
                     apiKey: openAIAPIKey,
                     baseURL: openAIBaseURL,
@@ -237,21 +215,20 @@ class AppViewModel: ObservableObject {
                 backlogTodos = try await aiService.generateTodoList(from: issues, calendarEvents: calendarEvents)
             }
 
-            // 5. 合并待办事项（保留自定义待办和已有状态）
             todoItems = mergeTodoItems(
                 existing: todoItems,
                 newBacklogItems: backlogTodos,
                 newCalendarItems: calendarTodos
             )
-            print("✅ [AppViewModel] 合并后共 \(todoItems.count) 个待办事项")
+            print("✅ [AppViewModel] Merged total \(todoItems.count) todo items")
 
         } catch {
-            print("❌ [AppViewModel] 错误: \(error.localizedDescription)")
+            print("❌ [AppViewModel] Error: \(error.localizedDescription)")
             showError(error.localizedDescription)
         }
 
         isGeneratingTodos = false
-        print("🏁 [AppViewModel] fetchAndGenerateTodos 结束")
+        print("🏁 [AppViewModel] fetchAndGenerateTodos finished")
     }
 
     func toggleTodoCompletion(_ todo: TodoItem) {
@@ -302,78 +279,69 @@ class AppViewModel: ObservableObject {
     }
     
     // MARK: - Calendar Methods
-    
-    /// 请求日历访问权限
+
     func requestCalendarAccess() async {
-        print("📅 [AppViewModel] 开始请求日历访问权限...")
+        print("📅 [AppViewModel] Requesting calendar access...")
         let service = CalendarService()
         do {
             let granted = try await service.requestAccess()
-            print("📅 [AppViewModel] 日历权限请求结果: \(granted)")
-            
-            // 重新检查状态
+            print("📅 [AppViewModel] Calendar access request result: \(granted)")
+
             await checkCalendarAccessStatus()
-            
+
             if !calendarAccessGranted {
-                print("❌ [AppViewModel] 日历访问未授予")
+                print("❌ [AppViewModel] Calendar access not granted")
                 showError("日历访问被拒绝。\n\n如果没有看到权限弹窗，请前往：\n系统设置 > 隐私与安全性 > 日历\n手动添加 Glance 的访问权限")
             } else {
-                print("✅ [AppViewModel] 日历访问权限已授予")
+                print("✅ [AppViewModel] Calendar access granted")
             }
         } catch let error as CalendarService.CalendarError {
-            print("❌ [AppViewModel] 日历权限错误: \(error)")
+            print("❌ [AppViewModel] Calendar access error: \(error)")
             calendarAccessGranted = false
-            
-            // 如果是访问被拒绝，提示用户打开系统设置
+
             if case .accessDenied = error {
                 showError("日历访问权限已被拒绝。\n\n请按以下步骤操作：\n1. 点击下方按钮打开系统设置\n2. 前往 隐私与安全性 > 日历\n3. 点击 🔒 解锁并添加 Glance")
             } else {
                 showError(error.localizedDescription)
             }
         } catch {
-            print("❌ [AppViewModel] 请求日历权限失败: \(error)")
+            print("❌ [AppViewModel] Failed to request calendar access: \(error)")
             calendarAccessGranted = false
             showError("请求日历权限失败: \(error.localizedDescription)\n\n请前往系统设置手动授予权限")
         }
     }
-    
-    /// 打开系统隐私设置
+
     func openSystemPrivacySettings() {
-        print("🔧 [AppViewModel] 尝试打开系统隐私设置...")
-        
-        // 方法 1: 尝试打开日历隐私设置（macOS 13+）
+        print("🔧 [AppViewModel] Attempting to open system privacy settings...")
+
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars") {
             NSWorkspace.shared.open(url)
-            print("✅ [AppViewModel] 已打开系统设置")
+            print("✅ [AppViewModel] Opened system settings")
             return
         }
-        
-        // 方法 2: 尝试打开通用隐私设置
+
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy") {
             NSWorkspace.shared.open(url)
-            print("✅ [AppViewModel] 已打开系统设置（通用）")
+            print("✅ [AppViewModel] Opened system settings (general)")
             return
         }
-        
-        // 方法 3: 打开系统设置主页
+
         NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/System Settings.app"))
-        print("✅ [AppViewModel] 已打开系统设置主页")
+        print("✅ [AppViewModel] Opened system settings main page")
     }
-    
-    /// 检查日历访问状态
+
     func checkCalendarAccessStatus() async {
         let service = CalendarService()
         let status = await service.checkAuthorizationStatus()
-        
-        print("📅 [AppViewModel] 检查日历状态: \(status.rawValue)")
-        
-        // macOS 14.0+ 引入了 .fullAccess，需要完整访问权限才能读取事件
+
+        print("📅 [AppViewModel] Checking calendar status: \(status.rawValue)")
+
         if #available(macOS 14.0, *) {
             calendarAccessGranted = (status == .fullAccess || status == .authorized)
         } else {
             calendarAccessGranted = (status == .authorized)
         }
-        
+
         print("📅 [AppViewModel] calendarAccessGranted = \(calendarAccessGranted)")
     }
 

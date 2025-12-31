@@ -1,9 +1,9 @@
 import Foundation
 
 enum TodoSource: String, Codable, Hashable {
-    case backlog    // 来自 Backlog 的票
-    case custom     // 用户自定义的待办
-    case calendar   // 来自系统日历
+    case backlog
+    case custom
+    case calendar
 }
 
 struct TodoItem: Identifiable, Codable, Hashable {
@@ -16,10 +16,10 @@ struct TodoItem: Identifiable, Codable, Hashable {
     let priority: String?
     let startDate: String?
     let dueDate: String?
-    let eventId: String?       // 日历事件 ID，用于去重
-    let eventStartTime: Date?  // 事件开始时间
-    let eventEndTime: Date?    // 事件结束时间
-    let eventLocation: String? // 事件地点
+    let eventId: String?
+    let eventStartTime: Date?
+    let eventEndTime: Date?
+    let eventLocation: String?
 
     init(
         id: UUID = UUID(),
@@ -51,7 +51,6 @@ struct TodoItem: Identifiable, Codable, Hashable {
         self.eventLocation = eventLocation
     }
 
-    /// 便捷初始化器 - 创建 Backlog 待办
     static func backlog(
         title: String,
         issueKey: String,
@@ -71,12 +70,10 @@ struct TodoItem: Identifiable, Codable, Hashable {
         )
     }
 
-    /// 便捷初始化器 - 创建自定义待办
     static func custom(title: String) -> TodoItem {
         TodoItem(title: title, source: .custom)
     }
     
-    /// 便捷初始化器 - 创建日历待办
     static func calendar(
         title: String,
         eventId: String,
@@ -84,8 +81,6 @@ struct TodoItem: Identifiable, Codable, Hashable {
         endTime: Date,
         location: String? = nil
     ) -> TodoItem {
-        // 只保留标题，不在标题中包含时间和地点
-        // 时间和地点信息会在 UI 的第二行显示
         return TodoItem(
             title: title,
             source: .calendar,

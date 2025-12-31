@@ -16,7 +16,6 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         }
     }
 
-    /// VoiceOver 描述
     var accessibilityLabel: String {
         switch self {
         case .backlog: return "Backlog 连接设置"
@@ -134,7 +133,6 @@ struct BacklogSettingsTab: View {
     @State private var isTesting = false
     @State private var testResult: Bool?
 
-    /// 根据 Reduce Motion 设置选择动画
     private var standardAnimation: Animation? {
         reduceMotion ? nil : .spring(response: 0.3)
     }
@@ -249,7 +247,6 @@ struct AISettingsTab: View {
     @State private var isTesting = false
     @State private var testResult: Bool?
 
-    /// 根据 Reduce Motion 设置选择动画
     private var standardAnimation: Animation? {
         reduceMotion ? nil : .spring(response: 0.3)
     }
@@ -403,10 +400,9 @@ struct AISettingsTab: View {
 // MARK: - Calendar Settings Tab
 struct CalendarSettingsTab: View {
     @ObservedObject var viewModel: AppViewModel
-    @State private var availableCalendars: [String: String] = [:] // ID -> Name
+    @State private var availableCalendars: [String: String] = [:]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    
-    /// 根据 Reduce Motion 设置选择动画
+
     private var standardAnimation: Animation? {
         reduceMotion ? nil : .spring(response: 0.3)
     }

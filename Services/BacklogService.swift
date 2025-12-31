@@ -34,19 +34,15 @@ actor BacklogService {
         "https://\(host)/api/v2"
     }
 
-    /// 从完整 URL 中提取 host
-    /// 例如: "https://fcn-dev.backlog.jp/" -> "fcn-dev.backlog.jp"
     private static func extractHost(from urlString: String) -> String {
         var cleaned = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // 移除协议前缀
         if cleaned.hasPrefix("https://") {
             cleaned = String(cleaned.dropFirst(8))
         } else if cleaned.hasPrefix("http://") {
             cleaned = String(cleaned.dropFirst(7))
         }
 
-        // 移除路径和尾部斜杠
         if let slashIndex = cleaned.firstIndex(of: "/") {
             cleaned = String(cleaned[..<slashIndex])
         }
@@ -61,15 +57,14 @@ actor BacklogService {
 
     func fetchMyIssues() async throws -> [BacklogIssue] {
         guard !host.isEmpty, !apiKey.isEmpty else {
-            print("❌ [BacklogService] 配置无效: host=\(host.isEmpty ? "空" : "有值"), apiKey=\(apiKey.isEmpty ? "空" : "有值")")
+            print("❌ [BacklogService] Invalid configuration: host=\(host.isEmpty ? "empty" : "set"), apiKey=\(apiKey.isEmpty ? "empty" : "set")")
             throw BacklogError.invalidConfiguration
         }
 
-        print("🔄 [BacklogService] 开始获取用户信息...")
+        print("🔄 [BacklogService] Fetching user info...")
         let myself = try await fetchMyself()
-        print("✅ [BacklogService] 获取到用户: id=\(myself.id), name=\(myself.name)")
+        print("✅ [BacklogService] Got user: id=\(myself.id), name=\(myself.name)")
 
-        // 使用 URLComponents 正确编码 URL
         var components = URLComponents(string: "\(baseURL)/issues")!
         components.queryItems = [
             URLQueryItem(name: "apiKey", value: apiKey),
@@ -81,25 +76,25 @@ actor BacklogService {
         ]
 
         guard let url = components.url else {
-            print("❌ [BacklogService] URL 构建失败")
+            print("❌ [BacklogService] URL construction failed")
             throw BacklogError.invalidURL
         }
 
-        print("🌐 [BacklogService] 请求 URL: \(url.absoluteString.replacingOccurrences(of: apiKey, with: "***"))")
+        print("🌐 [BacklogService] Request URL: \(url.absoluteString.replacingOccurrences(of: apiKey, with: "***"))")
 
         do {
             let (data, response) = try await URLSession.shared.data(from: url)
 
             guard let httpResponse = response as? HTTPURLResponse else {
-                print("❌ [BacklogService] 响应无效")
+                print("❌ [BacklogService] Invalid response")
                 throw BacklogError.invalidResponse
             }
 
-            print("📡 [BacklogService] HTTP 状态码: \(httpResponse.statusCode)")
+            print("📡 [BacklogService] HTTP status code: \(httpResponse.statusCode)")
 
             if httpResponse.statusCode != 200 {
-                let responseString = String(data: data, encoding: .utf8) ?? "无法解析"
-                print("❌ [BacklogService] 错误响应: \(responseString)")
+                let responseString = String(data: data, encoding: .utf8) ?? "Unable to parse"
+                print("❌ [BacklogService] Error response: \(responseString)")
                 if let errorResponse = try? JSONDecoder().decode(BacklogAPIError.self, from: data) {
                     throw BacklogError.apiError(errorResponse.errors.first?.message ?? "未知错误")
                 }
@@ -108,7 +103,7 @@ actor BacklogService {
 
             let decoder = JSONDecoder()
             let issues = try decoder.decode([BacklogIssue].self, from: data)
-            print("✅ [BacklogService] 成功获取 \(issues.count) 个票据")
+            print("✅ [BacklogService] Successfully fetched \(issues.count) issues")
             return issues
         } catch let error as BacklogError {
             throw error
@@ -124,7 +119,7 @@ actor BacklogService {
         print("🔍 [BacklogService] fetchMyself URL: \(baseURL)/users/myself?apiKey=***")
 
         guard let url = URL(string: urlString) else {
-            print("❌ [BacklogService] fetchMyself URL 无效")
+            print("❌ [BacklogService] fetchMyself URL invalid")
             throw BacklogError.invalidURL
         }
 
@@ -132,15 +127,15 @@ actor BacklogService {
             let (data, response) = try await URLSession.shared.data(from: url)
 
             guard let httpResponse = response as? HTTPURLResponse else {
-                print("❌ [BacklogService] fetchMyself 响应无效")
+                print("❌ [BacklogService] fetchMyself invalid response")
                 throw BacklogError.invalidResponse
             }
 
-            print("📡 [BacklogService] fetchMyself HTTP 状态码: \(httpResponse.statusCode)")
+            print("📡 [BacklogService] fetchMyself HTTP status code: \(httpResponse.statusCode)")
 
             if httpResponse.statusCode != 200 {
-                let responseString = String(data: data, encoding: .utf8) ?? "无法解析"
-                print("❌ [BacklogService] fetchMyself 错误响应: \(responseString)")
+                let responseString = String(data: data, encoding: .utf8) ?? "Unable to parse"
+                print("❌ [BacklogService] fetchMyself error response: \(responseString)")
                 if let errorResponse = try? JSONDecoder().decode(BacklogAPIError.self, from: data) {
                     throw BacklogError.apiError(errorResponse.errors.first?.message ?? "未知错误")
                 }
