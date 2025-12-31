@@ -241,6 +241,10 @@ class AppViewModel: ObservableObject {
         todoItems.removeAll { $0.id == todo.id }
     }
 
+    func clearAllTodos() {
+        todoItems.removeAll()
+    }
+
     func updateTodoTitle(_ todo: TodoItem, newTitle: String) {
         if let index = todoItems.firstIndex(where: { $0.id == todo.id }) {
             todoItems[index].title = newTitle

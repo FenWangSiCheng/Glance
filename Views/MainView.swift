@@ -171,6 +171,7 @@ struct TodosDetailView: View {
     @State private var editingTodo: TodoItem?
     @State private var editingText: String = ""
     @State private var newTodoText: String = ""
+    @State private var showingClearAllConfirmation = false
     @FocusState private var isNewTodoFocused: Bool
 
     private var standardAnimation: Animation? {
@@ -188,6 +189,34 @@ struct TodosDetailView: View {
             }
         }
         .navigationTitle("待办清单")
+        .toolbar {
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    showingClearAllConfirmation = true
+                } label: {
+                    Image(systemName: "trash")
+                        .accessibilityHidden(true)
+                }
+                .disabled(viewModel.todoItems.isEmpty)
+                .accessibilityLabel("清空所有待办")
+                .accessibilityHint("删除所有待办事项")
+                .help("清空所有待办")
+            }
+        }
+        .confirmationDialog(
+            "确定要清空所有待办吗？",
+            isPresented: $showingClearAllConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("清空所有", role: .destructive) {
+                withAnimation(standardAnimation) {
+                    viewModel.clearAllTodos()
+                }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("此操作不可撤销")
+        }
         .overlay {
             if viewModel.isGeneratingTodos {
                 generatingOverlay
@@ -331,7 +360,7 @@ struct TodoItemRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(alignment: .center, spacing: 12) {
             // Checkbox
             Button {
                 withAnimation(standardAnimation) {
@@ -341,10 +370,10 @@ struct TodoItemRow: View {
                 Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
                     .font(.title2)
                     .foregroundStyle(item.isCompleted ? Color(.systemGreen) : Color(.secondaryLabelColor))
-                    .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .frame(width: 24)
             .accessibilityHidden(true)
 
             if isEditing {
@@ -353,7 +382,7 @@ struct TodoItemRow: View {
                 normalContent
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 8)
         .onHover { hovering in
             isHovering = hovering
         }
@@ -394,7 +423,7 @@ struct TodoItemRow: View {
     }
 
     private var normalContent: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 2) {
             // First row: title + actions
             HStack(spacing: 8) {
                 // Title
@@ -409,14 +438,14 @@ struct TodoItemRow: View {
                 Spacer()
 
                 // Actions - always reserve space, control visibility with opacity
-                HStack(spacing: 0) {
+                HStack(spacing: 4) {
                     // Edit button
                     Button {
                         onStartEdit()
                     } label: {
                         Image(systemName: "pencil")
                             .foregroundStyle(Color(.secondaryLabelColor))
-                            .frame(minWidth: 44, minHeight: 44)
+                            .frame(width: 24, height: 24)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -430,7 +459,7 @@ struct TodoItemRow: View {
                         } label: {
                             Image(systemName: "arrow.up.right.square")
                                 .foregroundStyle(Color(.secondaryLabelColor))
-                                .frame(minWidth: 44, minHeight: 44)
+                                .frame(width: 24, height: 24)
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
@@ -446,7 +475,7 @@ struct TodoItemRow: View {
                     } label: {
                         Image(systemName: "trash")
                             .foregroundStyle(Color(.systemRed).opacity(0.8))
-                            .frame(minWidth: 44, minHeight: 44)
+                            .frame(width: 24, height: 24)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -472,19 +501,11 @@ struct TodoItemRow: View {
                         .background(priorityBackgroundColor(priority), in: RoundedRectangle(cornerRadius: 4))
                 }
 
-                // Date info (Backlog)
-                if item.source == .backlog {
-                    if let startDate = item.startDate {
-                        Text("开始: \(formatDate(startDate))")
-                            .font(.caption)
-                            .foregroundStyle(Color(.secondaryLabelColor))
-                    }
-
-                    if let dueDate = item.dueDate {
-                        Text("截止: \(formatDate(dueDate))")
-                            .font(.caption)
-                            .foregroundStyle(Color(.secondaryLabelColor))
-                    }
+                // Due date (Backlog only)
+                if item.source == .backlog, let dueDate = item.dueDate {
+                    Text("截止: \(formatDate(dueDate))")
+                        .font(.caption)
+                        .foregroundStyle(Color(.secondaryLabelColor))
                 }
                 
                 // Time and location info (Calendar)
@@ -595,7 +616,7 @@ struct TodoItemRow: View {
         guard let date = parseDate(dateString) else { return dateString }
 
         let outputFormatter = DateFormatter()
-        outputFormatter.dateFormat = "MM/dd"
+        outputFormatter.dateFormat = "yyyy/MM/dd"
         return outputFormatter.string(from: date)
     }
     
