@@ -39,20 +39,31 @@ actor RedmineService {
         self.apiKey = apiKey
     }
 
-    // MARK: - Connection Test
+    // MARK: - Common Request Method
 
-    func testConnection() async throws -> RedmineUser {
+    private func performRequest<T: Decodable>(
+        path: String,
+        method: String = "GET",
+        body: Data? = nil,
+        expectedStatusCode: Int = 200
+    ) async throws -> T {
         guard !baseURL.isEmpty, !apiKey.isEmpty else {
             throw RedmineError.invalidConfiguration
         }
 
-        let urlString = "\(baseURL)/users/current.json"
+        let urlString = "\(baseURL)\(path)"
         guard let url = URL(string: urlString) else {
             throw RedmineError.invalidURL
         }
 
         var request = URLRequest(url: url)
+        request.httpMethod = method
         request.setValue(apiKey, forHTTPHeaderField: "X-Redmine-API-Key")
+        
+        if let body = body {
+            request.httpBody = body
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
@@ -61,12 +72,15 @@ actor RedmineService {
                 throw RedmineError.invalidResponse
             }
 
-            if httpResponse.statusCode != 200 {
+            if httpResponse.statusCode != expectedStatusCode {
+                if let responseString = String(data: data, encoding: .utf8) {
+                    throw RedmineError.apiError("HTTP \(httpResponse.statusCode): \(responseString)")
+                }
                 throw RedmineError.apiError("HTTP \(httpResponse.statusCode)")
             }
 
-            let decoded = try JSONDecoder().decode(RedmineUserResponse.self, from: data)
-            return decoded.user
+            let decoded = try JSONDecoder().decode(T.self, from: data)
+            return decoded
         } catch let error as RedmineError {
             throw error
         } catch let error as DecodingError {
@@ -76,52 +90,32 @@ actor RedmineService {
         }
     }
 
+    // MARK: - Connection Test
+
+    func testConnection() async throws -> RedmineUser {
+        let response: RedmineUserResponse = try await performRequest(path: "/users/current.json")
+        return response.user
+    }
+
     // MARK: - Fetch Projects (with pagination)
 
     func fetchProjects() async throws -> [RedmineProject] {
-        guard !baseURL.isEmpty, !apiKey.isEmpty else {
-            throw RedmineError.invalidConfiguration
-        }
-
         var allProjects: [RedmineProject] = []
         var offset = 0
         let limit = 100
 
         while true {
-            let urlString = "\(baseURL)/projects.json?limit=\(limit)&offset=\(offset)"
-            guard let url = URL(string: urlString) else {
-                throw RedmineError.invalidURL
+            let response: RedmineProjectsResponse = try await performRequest(
+                path: "/projects.json?limit=\(limit)&offset=\(offset)"
+            )
+            
+            let activeProjects = response.projects.filter { !$0.isArchived }
+            allProjects.append(contentsOf: activeProjects)
+
+            if offset + limit >= response.totalCount {
+                break
             }
-
-            var request = URLRequest(url: url)
-            request.setValue(apiKey, forHTTPHeaderField: "X-Redmine-API-Key")
-
-            do {
-                let (data, response) = try await URLSession.shared.data(for: request)
-
-                guard let httpResponse = response as? HTTPURLResponse else {
-                    throw RedmineError.invalidResponse
-                }
-
-                if httpResponse.statusCode != 200 {
-                    throw RedmineError.apiError("HTTP \(httpResponse.statusCode)")
-                }
-
-                let decoded = try JSONDecoder().decode(RedmineProjectsResponse.self, from: data)
-                let activeProjects = decoded.projects.filter { !$0.isArchived }
-                allProjects.append(contentsOf: activeProjects)
-
-                if offset + limit >= decoded.totalCount {
-                    break
-                }
-                offset += limit
-            } catch let error as RedmineError {
-                throw error
-            } catch let error as DecodingError {
-                throw RedmineError.decodingError(error)
-            } catch {
-                throw RedmineError.networkError(error)
-            }
+            offset += limit
         }
 
         return allProjects.sorted { $0.name < $1.name }
@@ -129,155 +123,43 @@ actor RedmineService {
 
     // MARK: - Fetch Trackers
 
-    func fetchTrackers(projectId: Int) async throws -> [RedmineTracker] {
-        guard !baseURL.isEmpty, !apiKey.isEmpty else {
-            throw RedmineError.invalidConfiguration
-        }
-
-        let urlString = "\(baseURL)/trackers.json?project_id=\(projectId)"
-        guard let url = URL(string: urlString) else {
-            throw RedmineError.invalidURL
-        }
-
-        var request = URLRequest(url: url)
-        request.setValue(apiKey, forHTTPHeaderField: "X-Redmine-API-Key")
-
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw RedmineError.invalidResponse
-            }
-
-            if httpResponse.statusCode != 200 {
-                throw RedmineError.apiError("HTTP \(httpResponse.statusCode)")
-            }
-
-            let decoded = try JSONDecoder().decode(RedmineTrackersResponse.self, from: data)
-            return decoded.trackers
-        } catch let error as RedmineError {
-            throw error
-        } catch let error as DecodingError {
-            throw RedmineError.decodingError(error)
-        } catch {
-            throw RedmineError.networkError(error)
-        }
+    func fetchTrackers() async throws -> [RedmineTracker] {
+        let response: RedmineTrackersResponse = try await performRequest(path: "/trackers.json")
+        return response.trackers
     }
 
     // MARK: - Fetch Issues
 
     func fetchIssues(projectId: Int, trackerId: Int) async throws -> [RedmineIssue] {
-        guard !baseURL.isEmpty, !apiKey.isEmpty else {
-            throw RedmineError.invalidConfiguration
-        }
-
-        let urlString = "\(baseURL)/issues.json?project_id=\(projectId)&tracker_id=\(trackerId)"
-        guard let url = URL(string: urlString) else {
-            throw RedmineError.invalidURL
-        }
-
-        var request = URLRequest(url: url)
-        request.setValue(apiKey, forHTTPHeaderField: "X-Redmine-API-Key")
-
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw RedmineError.invalidResponse
-            }
-
-            if httpResponse.statusCode != 200 {
-                throw RedmineError.apiError("HTTP \(httpResponse.statusCode)")
-            }
-
-            let decoded = try JSONDecoder().decode(RedmineIssuesResponse.self, from: data)
-            return decoded.issues
-        } catch let error as RedmineError {
-            throw error
-        } catch let error as DecodingError {
-            throw RedmineError.decodingError(error)
-        } catch {
-            throw RedmineError.networkError(error)
-        }
+        let response: RedmineIssuesResponse = try await performRequest(
+            path: "/issues.json?project_id=\(projectId)&tracker_id=\(trackerId)"
+        )
+        return response.issues
     }
 
     // MARK: - Fetch Activities
 
     func fetchActivities() async throws -> [RedmineActivity] {
-        guard !baseURL.isEmpty, !apiKey.isEmpty else {
-            throw RedmineError.invalidConfiguration
-        }
-
-        let urlString = "\(baseURL)/enumerations/time_entry_activities.json"
-        guard let url = URL(string: urlString) else {
-            throw RedmineError.invalidURL
-        }
-
-        var request = URLRequest(url: url)
-        request.setValue(apiKey, forHTTPHeaderField: "X-Redmine-API-Key")
-
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw RedmineError.invalidResponse
-            }
-
-            if httpResponse.statusCode != 200 {
-                throw RedmineError.apiError("HTTP \(httpResponse.statusCode)")
-            }
-
-            let decoded = try JSONDecoder().decode(RedmineActivitiesResponse.self, from: data)
-            return decoded.timeEntryActivities
-        } catch let error as RedmineError {
-            throw error
-        } catch let error as DecodingError {
-            throw RedmineError.decodingError(error)
-        } catch {
-            throw RedmineError.networkError(error)
-        }
+        let response: RedmineActivitiesResponse = try await performRequest(
+            path: "/enumerations/time_entry_activities.json"
+        )
+        return response.timeEntryActivities
     }
 
     // MARK: - Submit Time Entry
 
     func submitTimeEntry(_ entry: RedmineTimeEntry) async throws {
-        guard !baseURL.isEmpty, !apiKey.isEmpty else {
-            throw RedmineError.invalidConfiguration
-        }
-
-        let urlString = "\(baseURL)/time_entries.json"
-        guard let url = URL(string: urlString) else {
-            throw RedmineError.invalidURL
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue(apiKey, forHTTPHeaderField: "X-Redmine-API-Key")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
         let requestBody = RedmineTimeEntryRequest(timeEntry: entry)
         let encoder = JSONEncoder()
-        request.httpBody = try encoder.encode(requestBody)
-
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw RedmineError.invalidResponse
-            }
-
-            if httpResponse.statusCode != 201 {
-                if let responseString = String(data: data, encoding: .utf8) {
-                    throw RedmineError.apiError("HTTP \(httpResponse.statusCode): \(responseString)")
-                }
-                throw RedmineError.apiError("HTTP \(httpResponse.statusCode)")
-            }
-        } catch let error as RedmineError {
-            throw error
-        } catch let error as EncodingError {
-            throw RedmineError.decodingError(error)
-        } catch {
-            throw RedmineError.networkError(error)
-        }
+        let body = try encoder.encode(requestBody)
+        
+        // Use a dummy response type since we don't need the response body
+        struct EmptyResponse: Codable {}
+        let _: EmptyResponse = try await performRequest(
+            path: "/time_entries.json",
+            method: "POST",
+            body: body,
+            expectedStatusCode: 201
+        )
     }
 }

@@ -129,11 +129,7 @@ struct RedmineTimeEntryView: View {
                         .onChange(of: selectedProject) { _ in
                             selectedTracker = nil
                             selectedIssue = nil
-                            trackers = []
                             issues = []
-                            if let project = selectedProject {
-                                loadTrackers(projectId: project.id)
-                            }
                         }
                     }
                 }
@@ -151,7 +147,6 @@ struct RedmineTimeEntryView: View {
                             }
                         }
                         .labelsHidden()
-                        .disabled(selectedProject == nil)
                         .onChange(of: selectedTracker) { _ in
                             selectedIssue = nil
                             issues = []
@@ -204,30 +199,31 @@ struct RedmineTimeEntryView: View {
                 }
 
                 // Comments input
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("描述")
-                            .foregroundStyle(Color(.secondaryLabelColor))
-                        Spacer()
-                        HStack(spacing: 4) {
-                            if comments.count > 255 {
-                                Image(systemName: "exclamationmark.circle.fill")
-                                    .foregroundStyle(Color(.systemRed))
-                                    .accessibilityHidden(true)
+                LabeledContent("描述") {
+                    VStack(alignment: .trailing, spacing: 4) {
+                        TextEditor(text: $comments)
+                            .font(.body)
+                            .scrollContentBackground(.hidden)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                            .frame(width: 200, height: 56)
+                            .background(Color(.textBackgroundColor))
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(Color(.separatorColor), lineWidth: 1)
+                            )
+                            .onChange(of: comments) { newValue in
+                                if newValue.count > 20 {
+                                    comments = String(newValue.prefix(20))
+                                }
                             }
-                            Text("\(comments.count)/255")
-                        }
-                        .font(.caption)
-                        .foregroundStyle(comments.count > 255 ? Color(.systemRed) : Color(.tertiaryLabelColor))
+                            .accessibilityLabel("工时描述")
+                            .accessibilityHint("输入工作内容描述，最多20字")
+                        Text("\(comments.count)/20")
+                            .font(.caption)
+                            .foregroundStyle(Color(.tertiaryLabelColor))
                     }
-                    TextEditor(text: $comments)
-                        .frame(height: 60)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(Color(.separatorColor), lineWidth: 1)
-                        )
-                        .accessibilityLabel("工时描述")
-                        .accessibilityHint("输入工作内容描述，最多255字符")
                 }
             } footer: {
                 HStack {
@@ -243,7 +239,7 @@ struct RedmineTimeEntryView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.regular)
-                    .disabled(!canAddEntry || comments.count > 255)
+                    .disabled(!canAddEntry)
                     .accessibilityLabel("添加到列表")
                     .accessibilityHint("将当前工时记录添加到待提交列表")
                 }
@@ -336,19 +332,23 @@ struct RedmineTimeEntryView: View {
 
     private func loadInitialData() {
         isLoadingProjects = true
+        isLoadingTrackers = true
         isLoadingActivities = true
 
         Task {
             do {
                 async let projectsResult = viewModel.fetchRedmineProjects()
+                async let trackersResult = viewModel.fetchRedmineTrackers()
                 async let activitiesResult = viewModel.fetchRedmineActivities()
 
-                let (fetchedProjects, fetchedActivities) = try await (projectsResult, activitiesResult)
+                let (fetchedProjects, fetchedTrackers, fetchedActivities) = try await (projectsResult, trackersResult, activitiesResult)
 
                 await MainActor.run {
                     projects = fetchedProjects
+                    trackers = fetchedTrackers
                     activities = fetchedActivities
                     isLoadingProjects = false
+                    isLoadingTrackers = false
                     isLoadingActivities = false
                 }
             } catch {
@@ -356,27 +356,8 @@ struct RedmineTimeEntryView: View {
                     errorMessage = error.localizedDescription
                     showingError = true
                     isLoadingProjects = false
+                    isLoadingTrackers = false
                     isLoadingActivities = false
-                }
-            }
-        }
-    }
-
-    private func loadTrackers(projectId: Int) {
-        isLoadingTrackers = true
-
-        Task {
-            do {
-                let fetchedTrackers = try await viewModel.fetchRedmineTrackers(projectId: projectId)
-                await MainActor.run {
-                    trackers = fetchedTrackers
-                    isLoadingTrackers = false
-                }
-            } catch {
-                await MainActor.run {
-                    errorMessage = error.localizedDescription
-                    showingError = true
-                    isLoadingTrackers = false
                 }
             }
         }

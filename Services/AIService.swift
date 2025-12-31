@@ -214,7 +214,8 @@ actor AIService {
                     issueURL: issueURL,
                     priority: issue.priority?.name,
                     startDate: issue.startDate,
-                    dueDate: issue.dueDate
+                    dueDate: issue.dueDate,
+                    milestoneNames: issue.milestoneNames.isEmpty ? nil : issue.milestoneNames
                 )
             }
         } catch {
@@ -254,6 +255,228 @@ actor AIService {
             throw AIError.networkError(error)
         }
     }
+
+    // MARK: - Redmine Matching Methods
+
+    /// Match todos to Redmine projects, trackers, and infer activity type, hours, comments
+    func matchProjectsTrackersAndActivities(
+        todos: [TodoItem],
+        projects: [RedmineProject],
+        trackers: [RedmineTracker],
+        activities: [RedmineActivity]
+    ) async throws -> [ProjectMatchResult] {
+        guard !apiKey.isEmpty else {
+            throw AIError.invalidConfiguration
+        }
+
+        let prompt = buildProjectMatchPrompt(todos: todos, projects: projects, trackers: trackers, activities: activities)
+        let response = try await sendRequest(prompt: prompt)
+        return try parseProjectMatchResponse(from: response)
+    }
+
+    /// Match todo title to Redmine issue
+    func matchIssue(
+        todoTitle: String,
+        issues: [RedmineIssue]
+    ) async throws -> IssueMatchResult {
+        guard !apiKey.isEmpty else {
+            throw AIError.invalidConfiguration
+        }
+
+        let prompt = buildIssueMatchPrompt(todoTitle: todoTitle, issues: issues)
+        let response = try await sendRequest(prompt: prompt)
+        return try parseIssueMatchResponse(from: response)
+    }
+
+    // MARK: - Prompt Builders
+
+    private func buildProjectMatchPrompt(
+        todos: [TodoItem],
+        projects: [RedmineProject],
+        trackers: [RedmineTracker],
+        activities: [RedmineActivity]
+    ) -> String {
+        let todoList = todos.map { todo -> String in
+            var info = "- 标题: \(todo.title)"
+            if let issueKey = todo.issueKey {
+                info += "\n  票据Key: \(issueKey)"
+            }
+            if let milestones = todo.milestoneNames, !milestones.isEmpty {
+                info += "\n  里程碑: \(milestones.joined(separator: ", "))"
+            }
+            return info
+        }.joined(separator: "\n\n")
+
+        let projectList = projects.map { "ID:\($0.id) 名称:\($0.name)" }.joined(separator: "\n")
+        let trackerList = trackers.map { "ID:\($0.id) 名称:\($0.name)" }.joined(separator: "\n")
+        let activityList = activities.map { "ID:\($0.id) 名称:\($0.name)" }.joined(separator: "\n")
+
+        print("📝 [AIService] Building project match prompt:")
+        print("   Todos (\(todos.count)):")
+        for todo in todos {
+            let milestones = todo.milestoneNames?.joined(separator: ", ") ?? "nil"
+            print("     - \(todo.title) [key=\(todo.issueKey ?? "nil"), milestones=\(milestones)]")
+        }
+        print("   Projects (\(projects.count)):")
+        for project in projects {
+            print("     - ID:\(project.id) \(project.name)")
+        }
+        print("   Trackers (\(trackers.count)):")
+        for tracker in trackers {
+            print("     - ID:\(tracker.id) \(tracker.name)")
+        }
+        print("   Activities (\(activities.count)):")
+        for activity in activities {
+            print("     - ID:\(activity.id) \(activity.name)")
+        }
+
+        return """
+        你是工时记录助手。分析已完成的任务，匹配 Redmine 项目、跟踪器并生成工时记录。
+
+        ## 已完成的任务
+        \(todoList)
+
+        ## 可用的 Redmine 项目
+        \(projectList)
+
+        ## 可用的跟踪器类型
+        \(trackerList)
+
+        ## 可用的活动类型
+        \(activityList)
+
+        ## 要求
+        1. 根据任务信息匹配最相关的项目，按以下优先级匹配：
+           a) 首先提取「票据Key」的前缀（如 VISSEL-776 → VISSEL）
+           b) 找到项目名称包含该前缀的候选项目
+           c) 如果有多个候选，根据「里程碑」名称中的关键词进一步筛选：
+              - 里程碑包含「保守」→ 优先选择项目名称包含「保守」的项目
+              - 里程碑包含「開幕」「新規」→ 优先选择项目名称包含「開幕」「案件」的项目
+              - 里程碑包含年份如「26年」只是时间标记，不作为主要匹配依据
+           d) 示例：票据Key=VISSEL-776, 里程碑=26年1月保守 → 应匹配「楽天 VisselKobe 保守」而非「26年開幕案件」
+        2. 根据任务标题匹配跟踪器类型（仅分析标题文字内容）：
+           - 标题包含「バグ」「bug」「修正」「修复」「エラー」「不具合」等关键词 → 选择 Bug 相关的跟踪器
+           - 标题包含「開発」「开发」「実装」「实现」「新機能」「新功能」「追加」等关键词 → 选择 功能/Feature/開発 相关的跟踪器
+           - 标题包含「タスク」「任务」「作業」「対応」「調査」「確認」等关键词 → 选择 任务/Task 相关的跟踪器
+           - 标题包含「サポート」「支持」「問い合わせ」「咨询」「質問」等关键词 → 选择 支持/Support 相关的跟踪器
+           - 如果标题关键词不明确，默认选择「開発」或「タスク」类跟踪器
+        3. 根据任务内容推断活动类型（开发/设计/测试/会议等），从可用的活动类型中选择
+        4. 估算合理工时（0.5-4小时）
+        5. 生成简洁的工作描述（20字以内，例如："完成登录功能开发"）
+
+        ## 返回 JSON 格式（只返回 JSON，不要其他文字）
+        {
+          "entries": [
+            {
+              "todoTitle": "任务标题",
+              "projectId": 123,
+              "projectName": "项目名称",
+              "trackerId": 1,
+              "trackerName": "開発",
+              "activityId": 8,
+              "activityName": "活动名称",
+              "hours": 1.5,
+              "comments": "完成了XX功能"
+            }
+          ]
+        }
+
+        注意：
+        - projectId 和 projectName 必须从上面的项目列表中选择，不能为 null
+        - trackerId 和 trackerName 必须从上面的跟踪器列表中选择，不能为 null
+        - activityId 和 activityName 必须从上面的活动类型列表中选择
+        """
+    }
+
+    private func buildIssueMatchPrompt(
+        todoTitle: String,
+        issues: [RedmineIssue]
+    ) -> String {
+        let issueList = issues.map { "ID:\($0.id) 标题:\($0.subject)" }.joined(separator: "\n")
+
+        return """
+        将任务标题匹配到最相关的 Redmine Issue。
+
+        任务: \(todoTitle)
+
+        可用的 Issues:
+        \(issueList)
+
+        返回 JSON（只返回 JSON，不要其他文字）:
+        { "issueId": 12345, "issueSubject": "开发" }
+
+        注意：
+        - 根据标题相似度匹配
+        - 必须从上面的 Issues 列表中选择一个有效的 ID 和标题，不能为空
+        """
+    }
+
+    // MARK: - Response Parsers
+
+    private func parseProjectMatchResponse(from response: String) throws -> [ProjectMatchResult] {
+        print("🔍 [AIService] Raw AI response for project match:")
+        print(response)
+        print("--- End of raw response ---")
+
+        var jsonString = response.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if jsonString.hasPrefix("```json") {
+            jsonString = String(jsonString.dropFirst(7))
+        } else if jsonString.hasPrefix("```") {
+            jsonString = String(jsonString.dropFirst(3))
+        }
+        if jsonString.hasSuffix("```") {
+            jsonString = String(jsonString.dropLast(3))
+        }
+        jsonString = jsonString.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        print("🔍 [AIService] Cleaned JSON string:")
+        print(jsonString)
+        print("--- End of cleaned JSON ---")
+
+        guard let data = jsonString.data(using: .utf8) else {
+            print("❌ [AIService] Failed to convert string to data")
+            throw AIError.decodingError(NSError(domain: "AIService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to parse response data"]))
+        }
+
+        do {
+            let parsed = try JSONDecoder().decode(ProjectMatchResponse.self, from: data)
+            print("✅ [AIService] Parsed \(parsed.entries.count) project match entries:")
+            for entry in parsed.entries {
+                print("   - Todo: \(entry.todoTitle)")
+                print("     ProjectId: \(entry.projectId), ProjectName: \(entry.projectName)")
+                print("     ActivityId: \(entry.activityId), ActivityName: \(entry.activityName), Hours: \(entry.hours)")
+            }
+            return parsed.entries
+        } catch {
+            print("❌ [AIService] JSON decode error: \(error)")
+            throw AIError.decodingError(error)
+        }
+    }
+
+    private func parseIssueMatchResponse(from response: String) throws -> IssueMatchResult {
+        var jsonString = response.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if jsonString.hasPrefix("```json") {
+            jsonString = String(jsonString.dropFirst(7))
+        } else if jsonString.hasPrefix("```") {
+            jsonString = String(jsonString.dropFirst(3))
+        }
+        if jsonString.hasSuffix("```") {
+            jsonString = String(jsonString.dropLast(3))
+        }
+        jsonString = jsonString.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard let data = jsonString.data(using: .utf8) else {
+            throw AIError.decodingError(NSError(domain: "AIService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to parse response data"]))
+        }
+
+        do {
+            return try JSONDecoder().decode(IssueMatchResult.self, from: data)
+        } catch {
+            throw AIError.decodingError(error)
+        }
+    }
 }
 
 private struct DeepSeekChatResponse: Codable {
@@ -283,4 +506,27 @@ private struct AITaskResponse: Codable {
         let issueKey: String
         let title: String
     }
+}
+
+// MARK: - Redmine Matching Response Models
+
+struct ProjectMatchResult: Codable {
+    let todoTitle: String
+    let projectId: Int
+    let projectName: String
+    let trackerId: Int
+    let trackerName: String
+    let activityId: Int
+    let activityName: String
+    let hours: Double
+    let comments: String
+}
+
+struct ProjectMatchResponse: Codable {
+    let entries: [ProjectMatchResult]
+}
+
+struct IssueMatchResult: Codable {
+    let issueId: Int
+    let issueSubject: String
 }

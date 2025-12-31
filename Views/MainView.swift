@@ -170,6 +170,10 @@ struct TodosDetailView: View {
         reduceMotion ? nil : .spring(response: 0.3)
     }
 
+    private var hasCompletedTodos: Bool {
+        viewModel.todoItems.contains { $0.isCompleted }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             addTodoBar
@@ -217,6 +221,33 @@ struct TodosDetailView: View {
                 .accessibilityHint("删除所有待办事项")
                 .help("清空所有待办")
             }
+
+            // Generate time entries button
+            if viewModel.isRedmineConfigured {
+                ToolbarItem(placement: .automatic) {
+                    Button {
+                        Task {
+                            await viewModel.generateTimeEntriesForCompletedTodos()
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            if viewModel.isGeneratingTimeEntries {
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .accessibilityHidden(true)
+                            } else {
+                                Image(systemName: "clock.badge.checkmark")
+                                    .accessibilityHidden(true)
+                            }
+                            Text(viewModel.isGeneratingTimeEntries ? "生成中..." : "生成工时")
+                        }
+                    }
+                    .disabled(!hasCompletedTodos || viewModel.isGeneratingTimeEntries || viewModel.isGeneratingTodos)
+                    .accessibilityLabel("生成工时")
+                    .accessibilityHint("根据已完成的待办自动生成 Redmine 工时记录")
+                    .help("根据已完成的待办生成工时")
+                }
+            }
         }
         .confirmationDialog(
             "确定要清空所有待办吗？",
@@ -235,6 +266,8 @@ struct TodosDetailView: View {
         .overlay {
             if viewModel.isGeneratingTodos {
                 generatingOverlay
+            } else if viewModel.isGeneratingTimeEntries {
+                timeEntryGeneratingOverlay
             }
         }
         .accessibilityElement(children: .contain)
@@ -352,6 +385,40 @@ struct TodosDetailView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("正在生成待办清单，请稍候")
+        .accessibilityAddTraits(.updatesFrequently)
+    }
+
+    private var timeEntryGeneratingOverlay: some View {
+        ZStack {
+            Color(.windowBackgroundColor).opacity(reduceTransparency ? 1.0 : 0.7)
+
+            VStack(spacing: 16) {
+                ProgressView()
+                    .scaleEffect(1.5)
+                    .accessibilityHidden(true)
+                Text("正在生成工时记录...")
+                    .font(.headline)
+                    .foregroundStyle(Color(.labelColor))
+                Text(viewModel.generationProgress.isEmpty ? "请稍候" : viewModel.generationProgress)
+                    .font(.subheadline)
+                    .foregroundStyle(Color(.secondaryLabelColor))
+            }
+            .padding(32)
+            .background(
+                reduceTransparency
+                    ? AnyShapeStyle(Color(.windowBackgroundColor))
+                    : AnyShapeStyle(.regularMaterial),
+                in: RoundedRectangle(cornerRadius: 16)
+            )
+            .shadow(
+                color: reduceTransparency ? .clear : Color(.shadowColor).opacity(0.2),
+                radius: reduceTransparency ? 0 : 16,
+                x: 0,
+                y: reduceTransparency ? 0 : 8
+            )
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("正在生成工时记录，\(viewModel.generationProgress)")
         .accessibilityAddTraits(.updatesFrequently)
     }
 }
@@ -514,6 +581,19 @@ struct TodoItemRow: View {
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .background(priorityBackgroundColor(priority), in: RoundedRectangle(cornerRadius: 4))
+                }
+
+                // Milestone badges (Backlog only)
+                if let milestones = item.milestoneNames, !milestones.isEmpty {
+                    ForEach(milestones, id: \.self) { milestone in
+                        Text(milestone)
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.purple)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.purple.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
+                    }
                 }
 
                 // Due date (Backlog only)

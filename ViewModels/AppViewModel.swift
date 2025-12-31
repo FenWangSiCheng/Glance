@@ -57,6 +57,10 @@ class AppViewModel: ObservableObject {
     // Redmine state
     @Published var pendingTimeEntries: [PendingTimeEntry] = []
 
+    // Time entry generation state
+    @Published var isGeneratingTimeEntries = false
+    @Published var generationProgress: String = ""
+
     @Published var todoItems: [TodoItem] = [] {
         didSet { saveTodoItems() }
     }
@@ -414,13 +418,13 @@ class AppViewModel: ObservableObject {
         return try await service.fetchProjects()
     }
 
-    func fetchRedmineTrackers(projectId: Int) async throws -> [RedmineTracker] {
+    func fetchRedmineTrackers() async throws -> [RedmineTracker] {
         guard isRedmineConfigured else {
             throw RedmineService.RedmineError.invalidConfiguration
         }
 
         let service = RedmineService(baseURL: redmineURL, apiKey: redmineAPIKey)
-        return try await service.fetchTrackers(projectId: projectId)
+        return try await service.fetchTrackers()
     }
 
     func fetchRedmineIssues(projectId: Int, trackerId: Int) async throws -> [RedmineIssue] {
@@ -474,5 +478,185 @@ class AppViewModel: ObservableObject {
 
         pendingTimeEntries = failedEntries
         return (successCount, failedEntries.count)
+    }
+
+    // MARK: - AI Time Entry Generation
+
+    func generateTimeEntriesForCompletedTodos() async {
+        print("🚀 [AppViewModel] generateTimeEntriesForCompletedTodos started")
+
+        // 1. Get completed todos
+        let completedTodos = todoItems.filter { $0.isCompleted }
+        guard !completedTodos.isEmpty else {
+            showError("没有已完成的待办事项")
+            return
+        }
+
+        guard isRedmineConfigured else {
+            showError("请先配置 Redmine API")
+            return
+        }
+
+        guard !openAIAPIKey.isEmpty else {
+            showError("请先配置 AI API Key")
+            return
+        }
+
+        isGeneratingTimeEntries = true
+        generationProgress = "正在获取项目列表..."
+
+        do {
+            let redmineService = RedmineService(baseURL: redmineURL, apiKey: redmineAPIKey)
+            let aiService = AIService(apiKey: openAIAPIKey, baseURL: openAIBaseURL, model: selectedModel)
+
+            // 2. Fetch projects, trackers, and activities in parallel
+            generationProgress = "正在获取项目、跟踪器和活动类型..."
+            async let projectsResult = redmineService.fetchProjects()
+            async let trackersResult = redmineService.fetchTrackers()
+            async let activitiesResult = redmineService.fetchActivities()
+            
+            let (projects, trackers, activities) = try await (projectsResult, trackersResult, activitiesResult)
+            
+            guard !projects.isEmpty else {
+                showError("未找到可用的 Redmine 项目，请检查账号权限")
+                isGeneratingTimeEntries = false
+                return
+            }
+
+            guard !trackers.isEmpty else {
+                showError("未找到可用的跟踪器，请检查 Redmine 配置")
+                isGeneratingTimeEntries = false
+                return
+            }
+
+            guard !activities.isEmpty else {
+                showError("未找到可用的活动类型，请检查 Redmine 配置")
+                isGeneratingTimeEntries = false
+                return
+            }
+            print("✅ [AppViewModel] Fetched \(projects.count) projects, \(trackers.count) trackers, \(activities.count) activities")
+
+            // 3. AI matches projects + trackers + activities + hours in one call
+            generationProgress = "AI 正在分析任务..."
+            let projectMatches = try await aiService.matchProjectsTrackersAndActivities(
+                todos: completedTodos,
+                projects: projects,
+                trackers: trackers,
+                activities: activities
+            )
+            print("✅ [AppViewModel] AI returned \(projectMatches.count) matches (project + tracker + activity)")
+
+            // 4. Group by project for batch processing
+            let groupedByProject = Dictionary(grouping: projectMatches) { $0.projectId }
+            var generatedCount = 0
+
+            // Get today's date string
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd"
+            let todayString = dateFormatter.string(from: Date())
+
+            print("🔍 [AppViewModel] Grouped by project: \(groupedByProject.count) groups")
+            for (projectId, matches) in groupedByProject {
+                print("🔍 [AppViewModel] Processing projectId: \(projectId) with \(matches.count) matches")
+
+                // Cache for issues by trackerId to avoid duplicate API calls
+                var issuesByTracker: [Int: [RedmineIssue]] = [:]
+
+                for match in matches {
+                    // Tracker is already matched by AI in step 3
+                    let trackerId = match.trackerId
+                    print("🔍 [AppViewModel] Processing todo: \(match.todoTitle) with trackerId=\(trackerId), trackerName=\(match.trackerName)")
+
+                    // 5. Fetch issues for this project + tracker (use cache if available)
+                    let issues: [RedmineIssue]
+                    if let cachedIssues = issuesByTracker[trackerId] {
+                        issues = cachedIssues
+                        print("✅ [AppViewModel] Using cached \(issues.count) issues for tracker \(trackerId)")
+                    } else {
+                        generationProgress = "正在获取任务列表..."
+                        issues = try await redmineService.fetchIssues(projectId: projectId, trackerId: trackerId)
+                        issuesByTracker[trackerId] = issues
+                        print("✅ [AppViewModel] Fetched \(issues.count) issues for project \(projectId), tracker \(trackerId)")
+                    }
+
+                    guard !issues.isEmpty else {
+                        print("⚠️ [AppViewModel] No issues found for tracker \(trackerId), skipping: \(match.todoTitle)")
+                        continue
+                    }
+
+                    // 6. AI matches issue
+                    print("🔍 [AppViewModel] Matching issue for todo: \(match.todoTitle)")
+                    let issueMatch = try await aiService.matchIssue(
+                        todoTitle: match.todoTitle,
+                        issues: issues
+                    )
+                    let issueId = issueMatch.issueId
+                    print("🔍 [AppViewModel] Issue match result: issueId=\(issueId), issueSubject=\(issueMatch.issueSubject)")
+
+                    // 7. Create PendingTimeEntry and add to list
+                    let matchedIssue = issues.first(where: { $0.id == issueId })
+                    let project = projects.first(where: { $0.id == projectId })
+                    let activity = activities.first(where: { $0.id == match.activityId })
+
+                    print("🔍 [AppViewModel] Condition check:")
+                    print("   - matchedIssue: \(matchedIssue != nil ? "found (\(matchedIssue!.subject))" : "nil (issueId=\(issueId))")")
+                    print("   - project: \(project != nil ? "found (\(project!.name))" : "nil")")
+                    print("   - activity: \(activity != nil ? "found (\(activity!.name))" : "nil (activityId=\(match.activityId))")")
+
+                    if let matchedIssue = matchedIssue,
+                       let project = project,
+                       let activity = activity {
+
+                        // Find the original todo to get issueKey
+                        let originalTodo = completedTodos.first { $0.title == match.todoTitle }
+
+                        // Build comments: include issueKey if from Backlog
+                        var finalComments = String(match.comments.prefix(20))
+                        if let issueKey = originalTodo?.issueKey {
+                            finalComments = "[\(issueKey)] \(finalComments)"
+                        }
+
+                        let timeEntry = RedmineTimeEntry(
+                            projectId: projectId,
+                            issueId: matchedIssue.id,
+                            activityId: activity.id,
+                            spentOn: todayString,
+                            hours: String(match.hours),
+                            comments: finalComments
+                        )
+
+                        let pendingEntry = PendingTimeEntry(
+                            timeEntry: timeEntry,
+                            projectName: project.name,
+                            issueSubject: matchedIssue.subject,
+                            issueId: matchedIssue.id,
+                            activityName: activity.name
+                        )
+
+                        pendingTimeEntries.append(pendingEntry)
+                        generatedCount += 1
+                        print("✅ [AppViewModel] Added pending entry for: \(match.todoTitle)")
+                    } else {
+                        print("⚠️ [AppViewModel] Could not create entry for: \(match.todoTitle) - missing required data")
+                    }
+                }
+            }
+
+            // 8. Navigate to time entry view
+            if generatedCount > 0 {
+                selectedDestination = .timeEntry
+                print("✅ [AppViewModel] Generated \(generatedCount) time entries")
+            } else {
+                showError("未能生成任何工时记录，请检查 AI 匹配结果")
+            }
+
+        } catch {
+            print("❌ [AppViewModel] Error: \(error.localizedDescription)")
+            showError(error.localizedDescription)
+        }
+
+        isGeneratingTimeEntries = false
+        generationProgress = ""
+        print("🏁 [AppViewModel] generateTimeEntriesForCompletedTodos finished")
     }
 }
