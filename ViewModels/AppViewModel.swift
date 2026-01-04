@@ -313,7 +313,8 @@ class AppViewModel: ObservableObject {
                 priority: issue.priority?.name,
                 startDate: issue.startDate,
                 dueDate: issue.dueDate,
-                milestoneNames: issue.milestoneNames.isEmpty ? nil : issue.milestoneNames
+                milestoneNames: issue.milestoneNames.isEmpty ? nil : issue.milestoneNames,
+                description: issue.description
             )
         }
     }

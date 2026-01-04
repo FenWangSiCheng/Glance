@@ -18,6 +18,7 @@ struct TodoItem: Identifiable, Codable, Hashable {
     let startDate: String?
     let dueDate: String?
     let milestoneNames: [String]?
+    let description: String?
     let eventId: String?
     let eventStartTime: Date?
     let eventEndTime: Date?
@@ -35,6 +36,7 @@ struct TodoItem: Identifiable, Codable, Hashable {
         startDate: String? = nil,
         dueDate: String? = nil,
         milestoneNames: [String]? = nil,
+        description: String? = nil,
         eventId: String? = nil,
         eventStartTime: Date? = nil,
         eventEndTime: Date? = nil,
@@ -51,6 +53,7 @@ struct TodoItem: Identifiable, Codable, Hashable {
         self.startDate = startDate
         self.dueDate = dueDate
         self.milestoneNames = milestoneNames
+        self.description = description
         self.eventId = eventId
         self.eventStartTime = eventStartTime
         self.eventEndTime = eventEndTime
@@ -64,7 +67,8 @@ struct TodoItem: Identifiable, Codable, Hashable {
         priority: String? = nil,
         startDate: String? = nil,
         dueDate: String? = nil,
-        milestoneNames: [String]? = nil
+        milestoneNames: [String]? = nil,
+        description: String? = nil
     ) -> TodoItem {
         TodoItem(
             title: title,
@@ -74,7 +78,8 @@ struct TodoItem: Identifiable, Codable, Hashable {
             priority: priority,
             startDate: startDate,
             dueDate: dueDate,
-            milestoneNames: milestoneNames
+            milestoneNames: milestoneNames,
+            description: description
         )
     }
 

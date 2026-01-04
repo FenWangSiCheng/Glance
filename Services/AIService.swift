@@ -148,13 +148,14 @@ actor AIService {
     /// Match todo title to Redmine issue
     func matchIssue(
         todoTitle: String,
+        description: String?,
         issues: [RedmineIssue]
     ) async throws -> IssueMatchResult {
         guard !apiKey.isEmpty else {
             throw AIError.invalidConfiguration
         }
 
-        let prompt = buildIssueMatchPrompt(todoTitle: todoTitle, issues: issues)
+        let prompt = buildIssueMatchPrompt(todoTitle: todoTitle, description: description, issues: issues)
         let response = try await sendRequest(prompt: prompt)
         return try parseIssueMatchResponse(from: response)
     }
@@ -174,6 +175,9 @@ actor AIService {
             }
             if let milestones = todo.milestoneNames, !milestones.isEmpty {
                 info += "\n  里程碑: \(milestones.joined(separator: ", "))"
+            }
+            if let description = todo.description, !description.isEmpty {
+                info += "\n  描述: \(description)"
             }
             return info
         }.joined(separator: "\n\n")
@@ -225,14 +229,14 @@ actor AIService {
               - 里程碑包含「開幕」「新規」→ 优先选择项目名称包含「開幕」「案件」的项目
               - 里程碑包含年份如「26年」只是时间标记，不作为主要匹配依据
            d) 示例：票据Key=VISSEL-776, 里程碑=26年1月保守 → 应匹配「楽天 VisselKobe 保守」而非「26年開幕案件」
-        2. 根据任务标题匹配跟踪器类型（仅分析标题文字内容）：
-           - 标题包含「バグ」「bug」「修正」「修复」「エラー」「不具合」等关键词 → 选择 Bug 相关的跟踪器
-           - 标题包含「開発」「开发」「実装」「实现」「新機能」「新功能」「追加」等关键词 → 选择 功能/Feature/開発 相关的跟踪器
-           - 标题包含「タスク」「任务」「作業」「対応」「調査」「確認」等关键词 → 选择 任务/Task 相关的跟踪器
-           - 标题包含「サポート」「支持」「問い合わせ」「咨询」「質問」等关键词 → 选择 支持/Support 相关的跟踪器
-           - 如果标题关键词不明确，默认选择「開発」或「タスク」类跟踪器
-        3. 根据任务内容推断活动类型（开发/设计/测试/会议等），从可用的活动类型中选择
-        4. 生成简洁的工作描述（20字以内，例如："完成登录功能开发"）
+        2. 根据任务标题和描述匹配跟踪器类型（综合分析标题和描述内容）：
+           - 标题或描述包含「バグ」「bug」「修正」「修复」「エラー」「不具合」等关键词 → 选择 Bug 相关的跟踪器
+           - 标题或描述包含「開発」「开发」「実装」「实现」「新機能」「新功能」「追加」等关键词 → 选择 功能/Feature/開発 相关的跟踪器
+           - 标题或描述包含「タスク」「任务」「作業」「対応」「調査」「確認」等关键词 → 选择 任务/Task 相关的跟踪器
+           - 标题或描述包含「サポート」「支持」「問い合わせ」「咨询」「質問」等关键词 → 选择 支持/Support 相关的跟踪器
+           - 如果标题和描述关键词不明确，默认选择「開発」或「タスク」类跟踪器
+        3. 根据任务标题和描述推断活动类型（开发/设计/测试/会议等），从可用的活动类型中选择
+        4. 生成简洁的工作描述（20字以内，例如："完成登录功能开发"），可参考任务描述中的关键信息
 
         ## 返回 JSON 格式（只返回 JSON，不要其他文字）
         {
@@ -260,14 +264,20 @@ actor AIService {
 
     private func buildIssueMatchPrompt(
         todoTitle: String,
+        description: String?,
         issues: [RedmineIssue]
     ) -> String {
         let issueList = issues.map { "ID:\($0.id) 标题:\($0.subject)" }.joined(separator: "\n")
 
-        return """
-        将任务标题匹配到最相关的 Redmine Issue。
+        var taskInfo = "任务标题: \(todoTitle)"
+        if let desc = description, !desc.isEmpty {
+            taskInfo += "\n任务描述: \(desc)"
+        }
 
-        任务: \(todoTitle)
+        return """
+        将任务匹配到最相关的 Redmine Issue。
+
+        \(taskInfo)
 
         可用的 Issues:
         \(issueList)
@@ -276,7 +286,8 @@ actor AIService {
         { "issueId": 12345, "issueSubject": "开发" }
 
         注意：
-        - 根据标题相似度匹配
+        - 根据标题和描述的相似度匹配
+        - 综合分析标题和描述内容，找到最相关的 Issue
         - 必须从上面的 Issues 列表中选择一个有效的 ID 和标题，不能为空
         """
     }
