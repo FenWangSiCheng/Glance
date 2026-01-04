@@ -32,6 +32,8 @@ struct RedmineTimeEntryView: View {
     // Submit result
     @State private var submitResult: (success: Int, failed: Int)?
     @State private var showingResult = false
+    @State private var emailSendResult: EmailSendResult?
+    @State private var submittedEntries: [PendingTimeEntry] = []
 
     private var dateFormatter: DateFormatter {
         let formatter = DateFormatter()
@@ -94,7 +96,15 @@ struct RedmineTimeEntryView: View {
         } message: {
             if let result = submitResult {
                 if result.failed == 0 {
-                    Text("成功提交 \(result.success) 条工时记录")
+                    if let emailResult = emailSendResult {
+                        if emailResult.success {
+                            Text("成功提交 \(result.success) 条工时记录\n日报邮件已发送")
+                        } else {
+                            Text("成功提交 \(result.success) 条工时记录\n日报发送失败: \(emailResult.message ?? "未知错误")")
+                        }
+                    } else {
+                        Text("成功提交 \(result.success) 条工时记录")
+                    }
                 } else {
                     Text("成功: \(result.success) 条，失败: \(result.failed) 条\n失败的记录已保留在列表中")
                 }
@@ -419,17 +429,30 @@ struct RedmineTimeEntryView: View {
 
     private func submitAll() {
         isSubmitting = true
+        emailSendResult = nil
+
+        // Save entries before submission for email report
+        let entriesToSubmit = viewModel.pendingTimeEntries
 
         Task {
             let result = await viewModel.submitAllPendingTimeEntries()
+
+            // If all succeeded and email is configured, send daily report
+            var emailResult: EmailSendResult?
+            if result.failed == 0 && result.success > 0 && viewModel.isEmailConfigured {
+                emailResult = await viewModel.sendDailyReport(for: entriesToSubmit)
+            }
+
             await MainActor.run {
                 submitResult = result
+                emailSendResult = emailResult
+                submittedEntries = entriesToSubmit
                 showingResult = true
                 isSubmitting = false
 
                 if result.failed == 0 && result.success > 0 {
                     // All submitted successfully, navigate back to todos
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
                         viewModel.selectedDestination = .todos
                     }
                 }

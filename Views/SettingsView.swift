@@ -6,6 +6,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     case calendar = "日历"
     case ai = "AI 模型"
     case redmine = "Redmine"
+    case email = "邮件"
 
     var id: String { rawValue }
 
@@ -15,6 +16,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .calendar: return "calendar"
         case .ai: return "cpu.fill"
         case .redmine: return "clock.fill"
+        case .email: return "envelope.fill"
         }
     }
 
@@ -24,6 +26,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .calendar: return "日历同步设置"
         case .ai: return "AI 模型设置"
         case .redmine: return "Redmine 工时设置"
+        case .email: return "邮件日报设置"
         }
     }
 }
@@ -69,6 +72,13 @@ struct SettingsView: View {
                     }
                     .tag(SettingsTab.redmine)
                     .accessibilityLabel(SettingsTab.redmine.accessibilityLabel)
+
+                EmailSettingsTab(viewModel: viewModel)
+                    .tabItem {
+                        Label("邮件", systemImage: "envelope.fill")
+                    }
+                    .tag(SettingsTab.email)
+                    .accessibilityLabel(SettingsTab.email.accessibilityLabel)
             }
             .padding(20)
 
@@ -674,6 +684,194 @@ struct RedmineSettingsTab: View {
 
         Task {
             let result = await viewModel.testRedmineConnection()
+            await MainActor.run {
+                withAnimation(standardAnimation) {
+                    testResult = result
+                }
+                isTesting = false
+            }
+        }
+    }
+}
+
+// MARK: - Email Settings Tab
+struct EmailSettingsTab: View {
+    @ObservedObject var viewModel: AppViewModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isTesting = false
+    @State private var testResult: Bool?
+    @State private var showAdvanced = false
+
+    private var standardAnimation: Animation? {
+        reduceMotion ? nil : .spring(response: 0.3)
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("启用日报邮件", isOn: $viewModel.emailEnabled)
+                    .accessibilityLabel("启用日报邮件")
+                    .accessibilityHint("开启后，工时提交成功时自动发送日报邮件")
+
+                if viewModel.emailEnabled {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("姓名")
+                                .font(.subheadline)
+                                .foregroundStyle(Color(.secondaryLabelColor))
+                            Spacer()
+                            if viewModel.redmineUser != nil {
+                                Text("已从 Redmine 自动填充")
+                                    .font(.caption)
+                                    .foregroundStyle(Color(.systemGreen))
+                            }
+                        }
+                        TextField("张三", text: $viewModel.emailUserName)
+                            .textFieldStyle(.roundedBorder)
+                            .accessibilityLabel("姓名")
+                            .accessibilityHint("用于日报邮件中的署名")
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("发件人邮箱")
+                            .font(.subheadline)
+                            .foregroundStyle(Color(.secondaryLabelColor))
+                        TextField("your-email@company.com", text: $viewModel.senderEmail)
+                            .textFieldStyle(.roundedBorder)
+                            .accessibilityLabel("发件人邮箱")
+                            .accessibilityHint("输入腾讯企业邮箱地址")
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("客户端专用密码")
+                            .font(.subheadline)
+                            .foregroundStyle(Color(.secondaryLabelColor))
+                        SecureField("输入客户端专用密码", text: $viewModel.emailPassword)
+                            .textFieldStyle(.roundedBorder)
+                            .accessibilityLabel("客户端专用密码")
+                            .accessibilityHint("在腾讯企业邮箱设置中生成的客户端专用密码")
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("收件人邮箱")
+                            .font(.subheadline)
+                            .foregroundStyle(Color(.secondaryLabelColor))
+                        TextField("recipient@company.com", text: $viewModel.recipientEmails)
+                            .textFieldStyle(.roundedBorder)
+                            .accessibilityLabel("收件人邮箱")
+                            .accessibilityHint("输入收件人邮箱，多个邮箱用逗号分隔")
+                        Text("多个收件人请用逗号分隔")
+                            .font(.caption)
+                            .foregroundStyle(Color(.tertiaryLabelColor))
+                    }
+
+                    DisclosureGroup("高级设置", isExpanded: $showAdvanced) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("SMTP 服务器")
+                                    .font(.subheadline)
+                                    .foregroundStyle(Color(.secondaryLabelColor))
+                                TextField("smtp.exmail.qq.com", text: $viewModel.smtpHost)
+                                    .textFieldStyle(.roundedBorder)
+                                    .accessibilityLabel("SMTP 服务器地址")
+                            }
+
+                            HStack(spacing: 16) {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("端口")
+                                        .font(.subheadline)
+                                        .foregroundStyle(Color(.secondaryLabelColor))
+                                    TextField("465", text: $viewModel.smtpPort)
+                                        .textFieldStyle(.roundedBorder)
+                                        .frame(width: 80)
+                                        .accessibilityLabel("SMTP 端口")
+                                }
+
+                                Toggle("使用 SSL", isOn: $viewModel.emailUseSSL)
+                                    .accessibilityLabel("使用 SSL 加密")
+                            }
+                        }
+                        .padding(.top, 8)
+                    }
+                    .accessibilityLabel("高级 SMTP 设置")
+                }
+            } header: {
+                HStack(spacing: 8) {
+                    Image(systemName: "envelope.fill")
+                        .foregroundStyle(Color(.systemBlue))
+                        .accessibilityHidden(true)
+                    Text("邮件日报配置")
+                        .font(.headline)
+                        .foregroundStyle(Color(.labelColor))
+                }
+                .padding(.bottom, 8)
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isHeader)
+            } footer: {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("工时提交成功后，自动发送日报到指定邮箱")
+                        .font(.caption)
+                        .foregroundStyle(Color(.secondaryLabelColor))
+
+                    Text("客户端专用密码请在腾讯企业邮箱 → 设置 → 邮箱绑定 → 安全登录 中生成")
+                        .font(.caption)
+                        .foregroundStyle(Color(.tertiaryLabelColor))
+
+                    if viewModel.emailEnabled {
+                        connectionTestButton
+                    }
+                }
+                .padding(.top, 8)
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private var connectionTestButton: some View {
+        HStack(spacing: 12) {
+            Button {
+                testConnection()
+            } label: {
+                HStack(spacing: 6) {
+                    if isTesting {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                            .accessibilityHidden(true)
+                    } else {
+                        Image(systemName: "network")
+                            .accessibilityHidden(true)
+                    }
+                    Text("测试连接")
+                }
+                .frame(minHeight: 32)
+            }
+            .buttonStyle(.bordered)
+            .disabled(viewModel.senderEmail.isEmpty || viewModel.emailPassword.isEmpty || isTesting)
+            .accessibilityLabel("测试邮件连接")
+            .accessibilityHint(isTesting ? "正在测试中" : "验证 SMTP 配置是否正确")
+
+            if let result = testResult {
+                HStack(spacing: 4) {
+                    Image(systemName: result ? "checkmark.circle.fill" : "xmark.circle.fill")
+                        .foregroundStyle(result ? Color(.systemGreen) : Color(.systemRed))
+                        .accessibilityHidden(true)
+                    Text(result ? "连接成功" : "连接失败")
+                        .font(.caption)
+                        .foregroundStyle(result ? Color(.systemGreen) : Color(.systemRed))
+                }
+                .transition(.opacity.combined(with: .scale))
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(result ? "连接测试成功" : "连接测试失败")
+            }
+        }
+    }
+
+    private func testConnection() {
+        isTesting = true
+        testResult = nil
+
+        Task {
+            let result = await viewModel.testEmailConnection()
             await MainActor.run {
                 withAnimation(standardAnimation) {
                     testResult = result

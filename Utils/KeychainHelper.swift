@@ -95,6 +95,7 @@ extension KeychainHelper {
         static let backlogAPIKey = "backlog_api_key"
         static let openAIAPIKey = "openai_api_key"
         static let redmineAPIKey = "redmine_api_key"
+        static let emailPassword = "email_password"
     }
 
     static var backlogAPIKey: String? {
@@ -126,6 +127,17 @@ extension KeychainHelper {
                 try? save(key: Keys.redmineAPIKey, value: value)
             } else {
                 try? delete(key: Keys.redmineAPIKey)
+            }
+        }
+    }
+
+    static var emailPassword: String? {
+        get { get(key: Keys.emailPassword) }
+        set {
+            if let value = newValue {
+                try? save(key: Keys.emailPassword, value: value)
+            } else {
+                try? delete(key: Keys.emailPassword)
             }
         }
     }

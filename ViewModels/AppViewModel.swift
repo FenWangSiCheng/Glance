@@ -54,8 +54,39 @@ class AppViewModel: ObservableObject {
         didSet { KeychainHelper.redmineAPIKey = redmineAPIKey }
     }
 
+    // Email settings
+    @Published var emailEnabled: Bool {
+        didSet { UserDefaults.standard.set(emailEnabled, forKey: "emailEnabled") }
+    }
+    @Published var emailUserName: String {
+        didSet { UserDefaults.standard.set(emailUserName, forKey: "emailUserName") }
+    }
+    @Published var senderEmail: String {
+        didSet { UserDefaults.standard.set(senderEmail, forKey: "senderEmail") }
+    }
+    @Published var emailPassword: String {
+        didSet { KeychainHelper.emailPassword = emailPassword }
+    }
+    @Published var recipientEmails: String {
+        didSet { UserDefaults.standard.set(recipientEmails, forKey: "recipientEmails") }
+    }
+    @Published var smtpHost: String {
+        didSet { UserDefaults.standard.set(smtpHost, forKey: "smtpHost") }
+    }
+    @Published var smtpPort: String {
+        didSet { UserDefaults.standard.set(smtpPort, forKey: "smtpPort") }
+    }
+    @Published var emailUseSSL: Bool {
+        didSet { UserDefaults.standard.set(emailUseSSL, forKey: "emailUseSSL") }
+    }
+
+    // Email state
+    @Published var isSendingEmail = false
+    @Published var lastEmailResult: EmailSendResult?
+
     // Redmine state
     @Published var pendingTimeEntries: [PendingTimeEntry] = []
+    @Published var redmineUser: RedmineUser?
 
     // Time entry generation state
     @Published var isGeneratingTimeEntries = false
@@ -83,6 +114,14 @@ class AppViewModel: ObservableObject {
         !redmineURL.isEmpty && !redmineAPIKey.isEmpty
     }
 
+    var isEmailConfigured: Bool {
+        emailEnabled &&
+        !emailUserName.isEmpty &&
+        !senderEmail.isEmpty &&
+        !emailPassword.isEmpty &&
+        !recipientEmails.isEmpty
+    }
+
     init() {
         self.backlogURL = UserDefaults.standard.string(forKey: "backlogURL") ?? ""
         self.backlogAPIKey = KeychainHelper.backlogAPIKey ?? ""
@@ -94,6 +133,17 @@ class AppViewModel: ObservableObject {
         self.calendarDaysAhead = UserDefaults.standard.integer(forKey: "calendarDaysAhead") != 0 ? UserDefaults.standard.integer(forKey: "calendarDaysAhead") : 1
         self.redmineURL = UserDefaults.standard.string(forKey: "redmineURL") ?? "https://fenrir-inc.cn/redmine"
         self.redmineAPIKey = KeychainHelper.redmineAPIKey ?? ""
+
+        // Email settings
+        self.emailEnabled = UserDefaults.standard.bool(forKey: "emailEnabled")
+        self.emailUserName = UserDefaults.standard.string(forKey: "emailUserName") ?? ""
+        self.senderEmail = UserDefaults.standard.string(forKey: "senderEmail") ?? ""
+        self.emailPassword = KeychainHelper.emailPassword ?? ""
+        self.recipientEmails = UserDefaults.standard.string(forKey: "recipientEmails") ?? ""
+        self.smtpHost = UserDefaults.standard.string(forKey: "smtpHost") ?? "smtp.exmail.qq.com"
+        self.smtpPort = UserDefaults.standard.string(forKey: "smtpPort") ?? "465"
+        self.emailUseSSL = UserDefaults.standard.object(forKey: "emailUseSSL") as? Bool ?? true
+
         self.todoItems = Self.loadTodoItems()
 
         // Check calendar access status
@@ -401,7 +451,18 @@ class AppViewModel: ObservableObject {
 
         do {
             let service = RedmineService(baseURL: redmineURL, apiKey: redmineAPIKey)
-            _ = try await service.testConnection()
+            let user = try await service.testConnection()
+            
+            // Save user info
+            await MainActor.run {
+                redmineUser = user
+                
+                // Auto-fill email username if empty
+                if emailUserName.isEmpty {
+                    emailUserName = user.fullName
+                }
+            }
+            
             return true
         } catch {
             print("❌ [AppViewModel] Redmine connection test failed: \(error)")
@@ -658,5 +719,96 @@ class AppViewModel: ObservableObject {
         isGeneratingTimeEntries = false
         generationProgress = ""
         print("🏁 [AppViewModel] generateTimeEntriesForCompletedTodos finished")
+    }
+
+    // MARK: - Email Methods
+
+    func testEmailConnection() async -> Bool {
+        guard !senderEmail.isEmpty, !emailPassword.isEmpty else {
+            return false
+        }
+
+        do {
+            let service = EmailService(
+                smtpHost: smtpHost,
+                smtpPort: Int(smtpPort) ?? 465,
+                username: senderEmail,
+                password: emailPassword,
+                useSSL: emailUseSSL
+            )
+            return try await service.testConnection()
+        } catch {
+            print("❌ [AppViewModel] Email connection test failed: \(error)")
+            return false
+        }
+    }
+
+    func sendDailyReport(for entries: [PendingTimeEntry]) async -> EmailSendResult {
+        guard isEmailConfigured else {
+            return .failed(message: "邮件未配置")
+        }
+
+        isSendingEmail = true
+        defer { isSendingEmail = false }
+
+        // Build report data
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let todayString = dateFormatter.string(from: Date())
+
+        let reportEntries = entries.map { entry in
+            DailyReportData.ReportEntry(
+                projectName: entry.projectName,
+                issueId: entry.issueId,
+                issueSubject: entry.issueSubject,
+                hours: Double(entry.timeEntry.hours) ?? 0,
+                comments: entry.timeEntry.comments,
+                activityName: entry.activityName
+            )
+        }
+
+        let reportData = DailyReportData(date: todayString, entries: reportEntries, userName: emailUserName)
+        let subject = reportData.generateSubject()
+        let body = reportData.generateHTMLReport()
+
+        // Parse recipients
+        let recipients = recipientEmails
+            .components(separatedBy: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+
+        guard !recipients.isEmpty else {
+            let result = EmailSendResult.failed(message: "收件人列表为空")
+            lastEmailResult = result
+            return result
+        }
+
+        do {
+            let service = EmailService(
+                smtpHost: smtpHost,
+                smtpPort: Int(smtpPort) ?? 465,
+                username: senderEmail,
+                password: emailPassword,
+                useSSL: emailUseSSL
+            )
+
+            try await service.sendEmail(
+                to: recipients,
+                subject: subject,
+                body: body,
+                isHTML: true
+            )
+
+            print("✅ [AppViewModel] Daily report email sent successfully")
+            let result = EmailSendResult.succeeded()
+            lastEmailResult = result
+            return result
+
+        } catch {
+            print("❌ [AppViewModel] Failed to send daily report: \(error)")
+            let result = EmailSendResult.failed(message: error.localizedDescription, error: error)
+            lastEmailResult = result
+            return result
+        }
     }
 }
