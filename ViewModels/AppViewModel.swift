@@ -92,7 +92,6 @@ class AppViewModel: ObservableObject {
     
     // Redmine cached data (loaded once)
     @Published var cachedRedmineProjects: [RedmineProject] = []
-    @Published var cachedRedmineTrackers: [RedmineTracker] = []
     @Published var cachedRedmineActivities: [RedmineActivity] = []
     @Published var isLoadingRedmineData = false
     private var redmineDataLoaded = false
@@ -237,12 +236,10 @@ class AppViewModel: ObservableObject {
                 comments: updatedTimeEntry.comments
             )
             
-            let updatedPendingEntry = PendingTimeEntry(
+                let updatedPendingEntry = PendingTimeEntry(
                 id: entry.id,
                 timeEntry: updatedTimeEntry,
                 projectName: entry.projectName,
-                trackerId: entry.trackerId,
-                trackerName: entry.trackerName,
                 issueSubject: entry.issueSubject,
                 issueId: entry.issueId,
                 activityName: entry.activityName
@@ -339,6 +336,7 @@ class AppViewModel: ObservableObject {
             if let existingItem = existingBacklogMap[issueKey] {
                 var updatedItem = newItem
                 updatedItem.isCompleted = existingItem.isCompleted
+                updatedItem.actualHours = existingItem.actualHours
                 result.append(updatedItem)
                 existingBacklogMap.removeValue(forKey: issueKey)
             } else {
@@ -363,6 +361,7 @@ class AppViewModel: ObservableObject {
             if let existingItem = existingCalendarMap[eventId] {
                 var updatedItem = newItem
                 updatedItem.isCompleted = existingItem.isCompleted
+                updatedItem.actualHours = existingItem.actualHours
                 result.append(updatedItem)
                 existingCalendarMap.removeValue(forKey: eventId)
             } else {
@@ -625,27 +624,14 @@ class AppViewModel: ObservableObject {
         return try await service.fetchProjects()
     }
 
-    func fetchRedmineTrackers() async throws -> [RedmineTracker] {
+
+    func fetchRedmineIssues(projectId: Int) async throws -> [RedmineIssue] {
         guard isRedmineConfigured else {
             throw RedmineService.RedmineError.invalidConfiguration
         }
 
         let service = RedmineService(baseURL: redmineURL, apiKey: redmineAPIKey)
-        return try await service.fetchTrackers()
-    }
-
-    func fetchRedmineIssues(projectId: Int, trackerId: Int?) async throws -> [RedmineIssue] {
-        guard isRedmineConfigured else {
-            throw RedmineService.RedmineError.invalidConfiguration
-        }
-
-        let service = RedmineService(baseURL: redmineURL, apiKey: redmineAPIKey)
-        if let trackerId = trackerId {
-            return try await service.fetchIssues(projectId: projectId, trackerId: trackerId)
-        } else {
-            // Fetch all issues for the project
-            return try await service.fetchIssues(projectId: projectId, trackerId: nil)
-        }
+        return try await service.fetchIssues(projectId: projectId)
     }
 
     func fetchRedmineActivities() async throws -> [RedmineActivity] {
@@ -657,7 +643,7 @@ class AppViewModel: ObservableObject {
         return try await service.fetchActivities()
     }
     
-    /// Load Redmine initial data (projects, trackers, activities) once and cache them
+    /// Load Redmine initial data (projects, activities) once and cache them
     func loadRedmineInitialDataIfNeeded() async throws {
         // Skip if already loaded
         guard !redmineDataLoaded else {
@@ -677,23 +663,20 @@ class AppViewModel: ObservableObject {
         let service = RedmineService(baseURL: redmineURL, apiKey: redmineAPIKey)
         
         async let projectsResult = service.fetchProjects()
-        async let trackersResult = service.fetchTrackers()
         async let activitiesResult = service.fetchActivities()
         
-        let (projects, trackers, activities) = try await (projectsResult, trackersResult, activitiesResult)
+        let (projects, activities) = try await (projectsResult, activitiesResult)
         
         cachedRedmineProjects = projects
-        cachedRedmineTrackers = trackers
         cachedRedmineActivities = activities
         redmineDataLoaded = true
         
-        print("✅ [AppViewModel] Redmine data loaded: \(projects.count) projects, \(trackers.count) trackers, \(activities.count) activities")
+        print("✅ [AppViewModel] Redmine data loaded: \(projects.count) projects, \(activities.count) activities")
     }
     
     /// Clear cached Redmine data (e.g., when settings change)
     func clearRedmineCache() {
         cachedRedmineProjects = []
-        cachedRedmineTrackers = []
         cachedRedmineActivities = []
         redmineDataLoaded = false
         print("🗑️ [AppViewModel] Redmine cache cleared")
@@ -775,22 +758,15 @@ class AppViewModel: ObservableObject {
             let redmineService = RedmineService(baseURL: redmineURL, apiKey: redmineAPIKey)
             let aiService = AIService(apiKey: openAIAPIKey, baseURL: openAIBaseURL, model: selectedModel)
 
-            // 2. Fetch projects, trackers, and activities in parallel
-            generationProgress = "正在获取项目、跟踪器和活动类型..."
+            // 2. Fetch projects and activities in parallel
+            generationProgress = "正在获取项目和活动类型..."
             async let projectsResult = redmineService.fetchProjects()
-            async let trackersResult = redmineService.fetchTrackers()
             async let activitiesResult = redmineService.fetchActivities()
             
-            let (projects, trackers, activities) = try await (projectsResult, trackersResult, activitiesResult)
+            let (projects, activities) = try await (projectsResult, activitiesResult)
             
             guard !projects.isEmpty else {
                 showError("未找到可用的 Redmine 项目，请检查账号权限")
-                isGeneratingTimeEntries = false
-                return
-            }
-
-            guard !trackers.isEmpty else {
-                showError("未找到可用的跟踪器，请检查 Redmine 配置")
                 isGeneratingTimeEntries = false
                 return
             }
@@ -800,16 +776,15 @@ class AppViewModel: ObservableObject {
                 isGeneratingTimeEntries = false
                 return
             }
-            print("✅ [AppViewModel] Fetched \(projects.count) projects, \(trackers.count) trackers, \(activities.count) activities")
+            print("✅ [AppViewModel] Fetched \(projects.count) projects, \(activities.count) activities")
 
             generationProgress = "AI 正在分析任务..."
-            let projectMatches = try await aiService.matchProjectsTrackersAndActivities(
+            let projectMatches = try await aiService.matchProjectsAndActivities(
                 todos: completedTodos,
                 projects: projects,
-                trackers: trackers,
                 activities: activities
             )
-            print("✅ [AppViewModel] AI returned \(projectMatches.count) matches (project + tracker + activity)")
+            print("✅ [AppViewModel] AI returned \(projectMatches.count) matches (project + activity)")
             
             var todoHoursMap: [String: Double] = [:]
             for todo in completedTodos {
@@ -831,58 +806,49 @@ class AppViewModel: ObservableObject {
             for (projectId, matches) in groupedByProject {
                 print("🔍 [AppViewModel] Processing projectId: \(projectId) with \(matches.count) matches")
 
-                // Cache for issues by trackerId to avoid duplicate API calls
-                var issuesByTracker: [Int: [RedmineIssue]] = [:]
+                // Fetch all issues for this project (no tracker filter)
+                generationProgress = "正在获取任务列表..."
+                let issues = try await redmineService.fetchIssues(projectId: projectId)
+                print("✅ [AppViewModel] Fetched \(issues.count) issues for project \(projectId)")
+
+                guard !issues.isEmpty else {
+                    print("⚠️ [AppViewModel] No issues found for project \(projectId), skipping all matches")
+                    continue
+                }
 
                 for match in matches {
-                    // Tracker is already matched by AI in step 3
-                    let trackerId = match.trackerId
-                    print("🔍 [AppViewModel] Processing todo: \(match.todoTitle) with trackerId=\(trackerId), trackerName=\(match.trackerName)")
+                    print("🔍 [AppViewModel] Processing todo: \(match.todoTitle)")
 
-                    // 5. Fetch issues for this project + tracker (use cache if available)
-                    let issues: [RedmineIssue]
-                    if let cachedIssues = issuesByTracker[trackerId] {
-                        issues = cachedIssues
-                        print("✅ [AppViewModel] Using cached \(issues.count) issues for tracker \(trackerId)")
-                    } else {
-                        generationProgress = "正在获取任务列表..."
-                        issues = try await redmineService.fetchIssues(projectId: projectId, trackerId: trackerId)
-                        issuesByTracker[trackerId] = issues
-                        print("✅ [AppViewModel] Fetched \(issues.count) issues for project \(projectId), tracker \(trackerId)")
-                    }
-
-                    guard !issues.isEmpty else {
-                        print("⚠️ [AppViewModel] No issues found for tracker \(trackerId), skipping: \(match.todoTitle)")
-                        continue
-                    }
-
-                    // 6. AI matches issue
+                    // AI matches issue
                     print("🔍 [AppViewModel] Matching issue for todo: \(match.todoTitle)")
+                    
+                    // Get the original todo to access its description
+                    let originalTodo = completedTodos.first { $0.title == match.todoTitle }
+                    
                     let issueMatch = try await aiService.matchIssue(
                         todoTitle: match.todoTitle,
+                        description: originalTodo?.description,
                         issues: issues
                     )
                     let issueId = issueMatch.issueId
                     print("🔍 [AppViewModel] Issue match result: issueId=\(issueId), issueSubject=\(issueMatch.issueSubject)")
 
-                    // 7. Create PendingTimeEntry and add to list
-                    let matchedIssue = issues.first(where: { $0.id == issueId })
+                    // Get matched issue
+                    guard let matchedIssue = issues.first(where: { $0.id == issueId }) else {
+                        print("⚠️ [AppViewModel] Could not find matched issue with id=\(issueId)")
+                        continue
+                    }
+                    
                     let project = projects.first(where: { $0.id == projectId })
-                    let tracker = trackers.first(where: { $0.id == trackerId })
                     let activity = activities.first(where: { $0.id == match.activityId })
 
                     print("🔍 [AppViewModel] Condition check:")
-                    print("   - matchedIssue: \(matchedIssue != nil ? "found (\(matchedIssue!.subject))" : "nil (issueId=\(issueId))")")
+                    print("   - matchedIssue: found (\(matchedIssue.subject))")
                     print("   - project: \(project != nil ? "found (\(project!.name))" : "nil")")
-                    print("   - tracker: \(tracker != nil ? "found (\(tracker!.name))" : "nil (trackerId=\(trackerId))")")
                     print("   - activity: \(activity != nil ? "found (\(activity!.name))" : "nil (activityId=\(match.activityId))")")
 
-                    if let matchedIssue = matchedIssue,
-                       let project = project,
-                       let tracker = tracker,
+                    if let project = project,
                        let activity = activity {
-
-                        let originalTodo = completedTodos.first { $0.title == match.todoTitle }
                         
                         let actualHours = todoHoursMap[match.todoTitle] ?? 0
                         print("🔍 [AppViewModel] Using actual hours for '\(match.todoTitle)': \(actualHours)")
@@ -904,8 +870,6 @@ class AppViewModel: ObservableObject {
                         let pendingEntry = PendingTimeEntry(
                             timeEntry: timeEntry,
                             projectName: project.name,
-                            trackerId: tracker.id,
-                            trackerName: tracker.name,
                             issueSubject: matchedIssue.subject,
                             issueId: matchedIssue.id,
                             activityName: activity.name

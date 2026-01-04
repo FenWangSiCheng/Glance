@@ -6,7 +6,6 @@ struct RedmineTimeEntryView: View {
     // Form state
     @State private var selectedDate = Date()
     @State private var selectedProject: RedmineProject?
-    @State private var selectedTracker: RedmineTracker?
     @State private var selectedIssue: RedmineIssue?
     @State private var selectedActivity: RedmineActivity?
     @State private var hours: String = ""
@@ -14,13 +13,11 @@ struct RedmineTimeEntryView: View {
 
     // Data state
     @State private var projects: [RedmineProject] = []
-    @State private var trackers: [RedmineTracker] = []
     @State private var issues: [RedmineIssue] = []
     @State private var activities: [RedmineActivity] = []
 
     // Loading state
     @State private var isLoadingProjects = false
-    @State private var isLoadingTrackers = false
     @State private var isLoadingIssues = false
     @State private var isLoadingActivities = false
     @State private var isSubmitting = false
@@ -39,7 +36,6 @@ struct RedmineTimeEntryView: View {
     @State private var editingEntryId: UUID?
     @State private var editDate = Date()
     @State private var editProject: RedmineProject?
-    @State private var editTracker: RedmineTracker?
     @State private var editIssue: RedmineIssue?
     @State private var editActivity: RedmineActivity?
     @State private var editHours: String = ""
@@ -55,7 +51,6 @@ struct RedmineTimeEntryView: View {
 
     private var canAddEntry: Bool {
         selectedProject != nil &&
-        selectedTracker != nil &&
         selectedIssue != nil &&
         selectedActivity != nil &&
         !hours.isEmpty &&
@@ -149,37 +144,17 @@ struct RedmineTimeEntryView: View {
                         }
                         .labelsHidden()
                         .onChange(of: selectedProject) { _ in
-                            selectedTracker = nil
                             selectedIssue = nil
                             issues = []
-                        }
-                    }
-                }
-
-                // Tracker picker
-                LabeledContent("跟踪器") {
-                    if isLoadingTrackers {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Picker("", selection: $selectedTracker) {
-                            Text("选择跟踪器").tag(nil as RedmineTracker?)
-                            ForEach(trackers) { tracker in
-                                Text(tracker.name).tag(tracker as RedmineTracker?)
-                            }
-                        }
-                        .labelsHidden()
-                        .onChange(of: selectedTracker) { _ in
-                            selectedIssue = nil
-                            issues = []
-                            if let project = selectedProject, let tracker = selectedTracker {
-                                loadIssues(projectId: project.id, trackerId: tracker.id)
+                            // Load issues for the selected project
+                            if let project = selectedProject {
+                                loadIssuesByProject(projectId: project.id)
                             }
                         }
                     }
                 }
 
-                // Issue picker
+                // Issue picker (tracker is auto-matched from issue)
                 LabeledContent("任务") {
                     if isLoadingIssues {
                         ProgressView()
@@ -192,7 +167,7 @@ struct RedmineTimeEntryView: View {
                             }
                         }
                         .labelsHidden()
-                        .disabled(selectedTracker == nil)
+                        .disabled(selectedProject == nil)
                     }
                 }
 
@@ -375,7 +350,6 @@ struct RedmineTimeEntryView: View {
             VStack(spacing: 10) {
                 infoRow(label: "日期", value: entry.timeEntry.spentOn)
                 infoRow(label: "项目", value: entry.projectName)
-                infoRow(label: "跟踪器", value: entry.trackerName)
                 infoRow(label: "任务", value: "#\(entry.issueId) \(entry.issueSubject)")
                 infoRow(label: "活动类型", value: entry.activityName)
                 infoRow(label: "工时(h)", value: entry.timeEntry.hours)
@@ -463,36 +437,16 @@ struct RedmineTimeEntryView: View {
                     .labelsHidden()
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .onChange(of: editProject) { _ in
-                        editTracker = nil
                         editIssue = nil
                         editIssues = []
-                    }
-                }
-                
-                // Tracker
-                HStack {
-                    Text("跟踪器")
-                        .font(.subheadline)
-                        .foregroundStyle(Color(.secondaryLabelColor))
-                        .frame(width: 70, alignment: .leading)
-                    Picker("", selection: $editTracker) {
-                        Text("选择跟踪器").tag(nil as RedmineTracker?)
-                        ForEach(trackers) { tracker in
-                            Text(tracker.name).tag(tracker as RedmineTracker?)
-                        }
-                    }
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .onChange(of: editTracker) { _ in
-                        editIssue = nil
-                        editIssues = []
-                        if let project = editProject, let tracker = editTracker {
-                            loadEditIssues(projectId: project.id, trackerId: tracker.id)
+                        // Load issues for the selected project
+                        if let project = editProject {
+                            loadEditIssuesByProject(projectId: project.id)
                         }
                     }
                 }
                 
-                // Issue
+                // Issue (tracker is auto-matched from issue)
                 HStack {
                     Text("任务")
                         .font(.subheadline)
@@ -511,7 +465,7 @@ struct RedmineTimeEntryView: View {
                         }
                         .labelsHidden()
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .disabled(editTracker == nil)
+                        .disabled(editProject == nil)
                     }
                 }
                 
@@ -579,7 +533,6 @@ struct RedmineTimeEntryView: View {
     
     private var canSaveEdit: Bool {
         editProject != nil &&
-        editTracker != nil &&
         editIssue != nil &&
         editActivity != nil &&
         !editHours.isEmpty &&
@@ -598,9 +551,6 @@ struct RedmineTimeEntryView: View {
         // Set project
         editProject = projects.first { $0.id == entry.timeEntry.projectId }
         
-        // Set tracker (now saved in entry)
-        editTracker = trackers.first { $0.id == entry.trackerId }
-        
         // Set activity
         editActivity = activities.first { $0.id == entry.timeEntry.activityId }
         
@@ -608,9 +558,9 @@ struct RedmineTimeEntryView: View {
         editHours = entry.timeEntry.hours
         editComments = entry.timeEntry.comments
         
-        // Load issues for the tracker
-        if let project = editProject, let tracker = editTracker {
-            loadEditIssues(projectId: project.id, trackerId: tracker.id)
+        // Load issues for the project
+        if let project = editProject {
+            loadEditIssuesByProject(projectId: project.id)
             // Set issue after issues are loaded
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 editIssue = editIssues.first { $0.id == entry.issueId }
@@ -622,7 +572,6 @@ struct RedmineTimeEntryView: View {
         editingEntryId = nil
         editDate = Date()
         editProject = nil
-        editTracker = nil
         editIssue = nil
         editActivity = nil
         editHours = ""
@@ -632,7 +581,6 @@ struct RedmineTimeEntryView: View {
     
     private func saveEditing(_ entry: PendingTimeEntry) {
         guard let project = editProject,
-              let tracker = editTracker,
               let issue = editIssue,
               let activity = editActivity else {
             return
@@ -651,8 +599,6 @@ struct RedmineTimeEntryView: View {
             id: entry.id,
             timeEntry: updatedTimeEntry,
             projectName: project.name,
-            trackerId: tracker.id,
-            trackerName: tracker.name,
             issueSubject: issue.subject,
             issueId: issue.id,
             activityName: activity.name
@@ -662,12 +608,12 @@ struct RedmineTimeEntryView: View {
         cancelEditing()
     }
     
-    private func loadEditIssues(projectId: Int, trackerId: Int) {
+    private func loadEditIssuesByProject(projectId: Int) {
         isLoadingEditIssues = true
         
         Task {
             do {
-                let fetchedIssues = try await viewModel.fetchRedmineIssues(projectId: projectId, trackerId: trackerId)
+                let fetchedIssues = try await viewModel.fetchRedmineIssues(projectId: projectId)
                 await MainActor.run {
                     editIssues = fetchedIssues
                     isLoadingEditIssues = false
@@ -688,13 +634,11 @@ struct RedmineTimeEntryView: View {
         // Use cached data if available
         if !viewModel.cachedRedmineProjects.isEmpty {
             projects = viewModel.cachedRedmineProjects
-            trackers = viewModel.cachedRedmineTrackers
             activities = viewModel.cachedRedmineActivities
             return
         }
         
         isLoadingProjects = true
-        isLoadingTrackers = true
         isLoadingActivities = true
 
         Task {
@@ -703,10 +647,8 @@ struct RedmineTimeEntryView: View {
                 
                 await MainActor.run {
                     projects = viewModel.cachedRedmineProjects
-                    trackers = viewModel.cachedRedmineTrackers
                     activities = viewModel.cachedRedmineActivities
                     isLoadingProjects = false
-                    isLoadingTrackers = false
                     isLoadingActivities = false
                 }
             } catch {
@@ -714,19 +656,18 @@ struct RedmineTimeEntryView: View {
                     errorMessage = error.localizedDescription
                     showingError = true
                     isLoadingProjects = false
-                    isLoadingTrackers = false
                     isLoadingActivities = false
                 }
             }
         }
     }
 
-    private func loadIssues(projectId: Int, trackerId: Int) {
+    private func loadIssuesByProject(projectId: Int) {
         isLoadingIssues = true
 
         Task {
             do {
-                let fetchedIssues = try await viewModel.fetchRedmineIssues(projectId: projectId, trackerId: trackerId)
+                let fetchedIssues = try await viewModel.fetchRedmineIssues(projectId: projectId)
                 await MainActor.run {
                     issues = fetchedIssues
                     isLoadingIssues = false
@@ -745,7 +686,6 @@ struct RedmineTimeEntryView: View {
 
     private func addToList() {
         guard let project = selectedProject,
-              let tracker = selectedTracker,
               let issue = selectedIssue,
               let activity = selectedActivity else {
             return
@@ -763,8 +703,6 @@ struct RedmineTimeEntryView: View {
         let pendingEntry = PendingTimeEntry(
             timeEntry: timeEntry,
             projectName: project.name,
-            trackerId: tracker.id,
-            trackerName: tracker.name,
             issueSubject: issue.subject,
             issueId: issue.id,
             activityName: activity.name
@@ -772,7 +710,7 @@ struct RedmineTimeEntryView: View {
 
         viewModel.addPendingTimeEntry(pendingEntry)
 
-        // Reset form (keep project, tracker, activity selections)
+        // Reset form (keep project and activity selections)
         hours = ""
         comments = ""
         selectedIssue = nil
