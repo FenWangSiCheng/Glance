@@ -120,6 +120,8 @@ struct PendingTimeEntry: Identifiable, Codable {
 
     // Display info (for UI)
     let projectName: String
+    let trackerId: Int
+    let trackerName: String
     let issueSubject: String
     let issueId: Int
     let activityName: String
@@ -129,15 +131,20 @@ struct PendingTimeEntry: Identifiable, Codable {
     }
 
     init(
+        id: UUID = UUID(),
         timeEntry: RedmineTimeEntry,
         projectName: String,
+        trackerId: Int,
+        trackerName: String,
         issueSubject: String,
         issueId: Int,
         activityName: String
     ) {
-        self.id = UUID()
+        self.id = id
         self.timeEntry = timeEntry
         self.projectName = projectName
+        self.trackerId = trackerId
+        self.trackerName = trackerName
         self.issueSubject = issueSubject
         self.issueId = issueId
         self.activityName = activityName

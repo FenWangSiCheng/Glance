@@ -85,7 +85,9 @@ class AppViewModel: ObservableObject {
     @Published var lastEmailResult: EmailSendResult?
 
     // Redmine state
-    @Published var pendingTimeEntries: [PendingTimeEntry] = []
+    @Published var pendingTimeEntries: [PendingTimeEntry] = [] {
+        didSet { savePendingTimeEntries() }
+    }
     @Published var redmineUser: RedmineUser?
     
     // Redmine cached data (loaded once)
@@ -152,6 +154,10 @@ class AppViewModel: ObservableObject {
         self.emailUseSSL = UserDefaults.standard.object(forKey: "emailUseSSL") as? Bool ?? true
 
         self.todoItems = Self.loadTodoItems()
+        self.pendingTimeEntries = Self.loadPendingTimeEntries()
+        
+        // Synchronize dates in pending entries on app restart
+        self.synchronizePendingEntryDates()
 
         // Check calendar access status
         Task {
@@ -182,6 +188,72 @@ class AppViewModel: ObservableObject {
         } catch {
             print("❌ [AppViewModel] Failed to save todo items: \(error)")
         }
+    }
+    
+    // MARK: - Pending Time Entry Persistence
+    
+    private static let pendingTimeEntriesKey = "pendingTimeEntries"
+    
+    private static func loadPendingTimeEntries() -> [PendingTimeEntry] {
+        guard let data = UserDefaults.standard.data(forKey: pendingTimeEntriesKey) else {
+            return []
+        }
+        do {
+            return try JSONDecoder().decode([PendingTimeEntry].self, from: data)
+        } catch {
+            print("❌ [AppViewModel] Failed to load pending time entries: \(error)")
+            return []
+        }
+    }
+    
+    private func savePendingTimeEntries() {
+        do {
+            let data = try JSONEncoder().encode(pendingTimeEntries)
+            UserDefaults.standard.set(data, forKey: Self.pendingTimeEntriesKey)
+        } catch {
+            print("❌ [AppViewModel] Failed to save pending time entries: \(error)")
+        }
+    }
+    
+    /// Synchronize dates in pending time entries to today's date
+    /// This is called on app restart to update old dates
+    private func synchronizePendingEntryDates() {
+        guard !pendingTimeEntries.isEmpty else { return }
+        
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let todayString = dateFormatter.string(from: Date())
+        
+        // Update each entry's spentOn date to today
+        var updatedEntries: [PendingTimeEntry] = []
+        for entry in pendingTimeEntries {
+            var updatedTimeEntry = entry.timeEntry
+            updatedTimeEntry = RedmineTimeEntry(
+                projectId: updatedTimeEntry.projectId,
+                issueId: updatedTimeEntry.issueId,
+                activityId: updatedTimeEntry.activityId,
+                spentOn: todayString,
+                hours: updatedTimeEntry.hours,
+                comments: updatedTimeEntry.comments
+            )
+            
+            let updatedPendingEntry = PendingTimeEntry(
+                id: entry.id,
+                timeEntry: updatedTimeEntry,
+                projectName: entry.projectName,
+                trackerId: entry.trackerId,
+                trackerName: entry.trackerName,
+                issueSubject: entry.issueSubject,
+                issueId: entry.issueId,
+                activityName: entry.activityName
+            )
+            updatedEntries.append(updatedPendingEntry)
+        }
+        
+        // Temporarily disable didSet to avoid double-saving
+        pendingTimeEntries = updatedEntries
+        
+        print("✅ [AppViewModel] Synchronized \(updatedEntries.count) pending entry dates to \(todayString)")
     }
 
     /// Convert Backlog issues to TodoItems with local sorting (no AI needed)
@@ -561,13 +633,18 @@ class AppViewModel: ObservableObject {
         return try await service.fetchTrackers()
     }
 
-    func fetchRedmineIssues(projectId: Int, trackerId: Int) async throws -> [RedmineIssue] {
+    func fetchRedmineIssues(projectId: Int, trackerId: Int?) async throws -> [RedmineIssue] {
         guard isRedmineConfigured else {
             throw RedmineService.RedmineError.invalidConfiguration
         }
 
         let service = RedmineService(baseURL: redmineURL, apiKey: redmineAPIKey)
-        return try await service.fetchIssues(projectId: projectId, trackerId: trackerId)
+        if let trackerId = trackerId {
+            return try await service.fetchIssues(projectId: projectId, trackerId: trackerId)
+        } else {
+            // Fetch all issues for the project
+            return try await service.fetchIssues(projectId: projectId, trackerId: nil)
+        }
     }
 
     func fetchRedmineActivities() async throws -> [RedmineActivity] {
@@ -627,6 +704,12 @@ class AppViewModel: ObservableObject {
 
     func removePendingTimeEntry(id: UUID) {
         pendingTimeEntries.removeAll { $0.id == id }
+    }
+    
+    func updatePendingTimeEntry(_ entry: PendingTimeEntry) {
+        if let index = pendingTimeEntries.firstIndex(where: { $0.id == entry.id }) {
+            pendingTimeEntries[index] = entry
+        }
     }
 
     func clearPendingTimeEntries() {
@@ -784,15 +867,18 @@ class AppViewModel: ObservableObject {
                     // 7. Create PendingTimeEntry and add to list
                     let matchedIssue = issues.first(where: { $0.id == issueId })
                     let project = projects.first(where: { $0.id == projectId })
+                    let tracker = trackers.first(where: { $0.id == trackerId })
                     let activity = activities.first(where: { $0.id == match.activityId })
 
                     print("🔍 [AppViewModel] Condition check:")
                     print("   - matchedIssue: \(matchedIssue != nil ? "found (\(matchedIssue!.subject))" : "nil (issueId=\(issueId))")")
                     print("   - project: \(project != nil ? "found (\(project!.name))" : "nil")")
+                    print("   - tracker: \(tracker != nil ? "found (\(tracker!.name))" : "nil (trackerId=\(trackerId))")")
                     print("   - activity: \(activity != nil ? "found (\(activity!.name))" : "nil (activityId=\(match.activityId))")")
 
                     if let matchedIssue = matchedIssue,
                        let project = project,
+                       let tracker = tracker,
                        let activity = activity {
 
                         let originalTodo = completedTodos.first { $0.title == match.todoTitle }
@@ -817,6 +903,8 @@ class AppViewModel: ObservableObject {
                         let pendingEntry = PendingTimeEntry(
                             timeEntry: timeEntry,
                             projectName: project.name,
+                            trackerId: tracker.id,
+                            trackerName: tracker.name,
                             issueSubject: matchedIssue.subject,
                             issueId: matchedIssue.id,
                             activityName: activity.name

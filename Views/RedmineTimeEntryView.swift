@@ -34,6 +34,18 @@ struct RedmineTimeEntryView: View {
     @State private var showingResult = false
     @State private var emailSendResult: EmailSendResult?
     @State private var submittedEntries: [PendingTimeEntry] = []
+    
+    // Editing state
+    @State private var editingEntryId: UUID?
+    @State private var editDate = Date()
+    @State private var editProject: RedmineProject?
+    @State private var editTracker: RedmineTracker?
+    @State private var editIssue: RedmineIssue?
+    @State private var editActivity: RedmineActivity?
+    @State private var editHours: String = ""
+    @State private var editComments: String = ""
+    @State private var editIssues: [RedmineIssue] = []
+    @State private var isLoadingEditIssues = false
 
     private var dateFormatter: DateFormatter {
         let formatter = DateFormatter()
@@ -305,37 +317,369 @@ struct RedmineTimeEntryView: View {
     }
 
     private func pendingEntryRow(_ entry: PendingTimeEntry) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(entry.displaySummary)
-                    .font(.body)
-                    .fontWeight(.medium)
-                    .foregroundStyle(Color(.labelColor))
-                Text(entry.issueSubject)
-                    .font(.subheadline)
-                    .foregroundStyle(Color(.secondaryLabelColor))
-                    .lineLimit(1)
-                Text(entry.timeEntry.comments)
-                    .font(.subheadline)
-                    .foregroundStyle(Color(.secondaryLabelColor))
-                    .lineLimit(2)
+        VStack(spacing: 0) {
+            if editingEntryId == entry.id {
+                editingEntryView(entry)
+            } else {
+                displayEntryView(entry)
             }
-            Spacer()
-            Button {
-                viewModel.removePendingTimeEntry(id: entry.id)
-            } label: {
-                Image(systemName: "trash")
-                    .foregroundStyle(Color(.systemRed))
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("删除")
-            .accessibilityHint("删除此工时记录")
         }
-        .padding(12)
         .background(Color(.textBackgroundColor))
         .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(editingEntryId == entry.id ? Color.accentColor : Color.clear, lineWidth: 2)
+        )
+    }
+    
+    private func displayEntryView(_ entry: PendingTimeEntry) -> some View {
+        VStack(spacing: 0) {
+            // Header with actions
+            HStack {
+                Text("工时记录")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color(.secondaryLabelColor))
+                Spacer()
+                HStack(spacing: 12) {
+                    Button {
+                        startEditing(entry)
+                    } label: {
+                        Image(systemName: "pencil")
+                            .foregroundStyle(Color.accentColor)
+                            .frame(minWidth: 32, minHeight: 32)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("编辑")
+                    
+                    Button {
+                        viewModel.removePendingTimeEntry(id: entry.id)
+                    } label: {
+                        Image(systemName: "trash")
+                            .foregroundStyle(Color(.systemRed))
+                            .frame(minWidth: 32, minHeight: 32)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("删除")
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 12)
+            .padding(.bottom, 8)
+            
+            Divider()
+            
+            // Content
+            VStack(spacing: 10) {
+                infoRow(label: "日期", value: entry.timeEntry.spentOn)
+                infoRow(label: "项目", value: entry.projectName)
+                infoRow(label: "跟踪器", value: entry.trackerName)
+                infoRow(label: "任务", value: "#\(entry.issueId) \(entry.issueSubject)")
+                infoRow(label: "活动类型", value: entry.activityName)
+                infoRow(label: "工时(h)", value: entry.timeEntry.hours)
+                infoRow(label: "描述", value: entry.timeEntry.comments)
+            }
+            .padding(12)
+        }
+    }
+    
+    private func infoRow(label: String, value: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text(label)
+                .font(.subheadline)
+                .foregroundStyle(Color(.secondaryLabelColor))
+                .frame(width: 70, alignment: .leading)
+            Text(value)
+                .font(.subheadline)
+                .foregroundStyle(Color(.labelColor))
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+    
+    private func editingEntryView(_ entry: PendingTimeEntry) -> some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Text("编辑工时记录")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.accentColor)
+                Spacer()
+                HStack(spacing: 12) {
+                    Button {
+                        cancelEditing()
+                    } label: {
+                        Text("取消")
+                            .font(.subheadline)
+                            .foregroundStyle(Color(.secondaryLabelColor))
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Button {
+                        saveEditing(entry)
+                    } label: {
+                        Text("保存")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.accentColor)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!canSaveEdit)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 12)
+            .padding(.bottom, 8)
+            
+            Divider()
+            
+            // Editing form
+            VStack(spacing: 12) {
+                // Date
+                HStack {
+                    Text("日期")
+                        .font(.subheadline)
+                        .foregroundStyle(Color(.secondaryLabelColor))
+                        .frame(width: 70, alignment: .leading)
+                    DatePicker("", selection: $editDate, displayedComponents: .date)
+                        .labelsHidden()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                
+                // Project
+                HStack {
+                    Text("项目")
+                        .font(.subheadline)
+                        .foregroundStyle(Color(.secondaryLabelColor))
+                        .frame(width: 70, alignment: .leading)
+                    Picker("", selection: $editProject) {
+                        Text("选择项目").tag(nil as RedmineProject?)
+                        ForEach(projects) { project in
+                            Text(project.name).tag(project as RedmineProject?)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .onChange(of: editProject) { _ in
+                        editTracker = nil
+                        editIssue = nil
+                        editIssues = []
+                    }
+                }
+                
+                // Tracker
+                HStack {
+                    Text("跟踪器")
+                        .font(.subheadline)
+                        .foregroundStyle(Color(.secondaryLabelColor))
+                        .frame(width: 70, alignment: .leading)
+                    Picker("", selection: $editTracker) {
+                        Text("选择跟踪器").tag(nil as RedmineTracker?)
+                        ForEach(trackers) { tracker in
+                            Text(tracker.name).tag(tracker as RedmineTracker?)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .onChange(of: editTracker) { _ in
+                        editIssue = nil
+                        editIssues = []
+                        if let project = editProject, let tracker = editTracker {
+                            loadEditIssues(projectId: project.id, trackerId: tracker.id)
+                        }
+                    }
+                }
+                
+                // Issue
+                HStack {
+                    Text("任务")
+                        .font(.subheadline)
+                        .foregroundStyle(Color(.secondaryLabelColor))
+                        .frame(width: 70, alignment: .leading)
+                    if isLoadingEditIssues {
+                        ProgressView()
+                            .controlSize(.small)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        Picker("", selection: $editIssue) {
+                            Text("选择任务").tag(nil as RedmineIssue?)
+                            ForEach(editIssues) { issue in
+                                Text(issue.displayTitle).tag(issue as RedmineIssue?)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .disabled(editTracker == nil)
+                    }
+                }
+                
+                // Activity
+                HStack {
+                    Text("活动类型")
+                        .font(.subheadline)
+                        .foregroundStyle(Color(.secondaryLabelColor))
+                        .frame(width: 70, alignment: .leading)
+                    Picker("", selection: $editActivity) {
+                        Text("选择活动类型").tag(nil as RedmineActivity?)
+                        ForEach(activities) { activity in
+                            Text(activity.name).tag(activity as RedmineActivity?)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                
+                // Hours
+                HStack {
+                    Text("工时(h)")
+                        .font(.subheadline)
+                        .foregroundStyle(Color(.secondaryLabelColor))
+                        .frame(width: 70, alignment: .leading)
+                    TextField("例如:2.5", text: $editHours)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                
+                // Comments
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("描述")
+                            .font(.subheadline)
+                            .foregroundStyle(Color(.secondaryLabelColor))
+                            .frame(width: 70, alignment: .leading)
+                        Spacer()
+                        Text("\(editComments.count)/20")
+                            .font(.caption)
+                            .foregroundStyle(Color(.tertiaryLabelColor))
+                    }
+                    TextEditor(text: $editComments)
+                        .font(.body)
+                        .scrollContentBackground(.hidden)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                        .frame(height: 60)
+                        .background(Color(.controlBackgroundColor))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(Color(.separatorColor), lineWidth: 1)
+                        )
+                        .onChange(of: editComments) { newValue in
+                            if newValue.count > 20 {
+                                editComments = String(newValue.prefix(20))
+                            }
+                        }
+                }
+            }
+            .padding(12)
+        }
+    }
+    
+    private var canSaveEdit: Bool {
+        editProject != nil &&
+        editTracker != nil &&
+        editIssue != nil &&
+        editActivity != nil &&
+        !editHours.isEmpty &&
+        Double(editHours) != nil &&
+        !editComments.isEmpty
+    }
+    
+    private func startEditing(_ entry: PendingTimeEntry) {
+        editingEntryId = entry.id
+        
+        // Parse date
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        editDate = formatter.date(from: entry.timeEntry.spentOn) ?? Date()
+        
+        // Set project
+        editProject = projects.first { $0.id == entry.timeEntry.projectId }
+        
+        // Set tracker (now saved in entry)
+        editTracker = trackers.first { $0.id == entry.trackerId }
+        
+        // Set activity
+        editActivity = activities.first { $0.id == entry.timeEntry.activityId }
+        
+        // Set hours and comments
+        editHours = entry.timeEntry.hours
+        editComments = entry.timeEntry.comments
+        
+        // Load issues for the tracker
+        if let project = editProject, let tracker = editTracker {
+            loadEditIssues(projectId: project.id, trackerId: tracker.id)
+            // Set issue after issues are loaded
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                editIssue = editIssues.first { $0.id == entry.issueId }
+            }
+        }
+    }
+    
+    private func cancelEditing() {
+        editingEntryId = nil
+        editDate = Date()
+        editProject = nil
+        editTracker = nil
+        editIssue = nil
+        editActivity = nil
+        editHours = ""
+        editComments = ""
+        editIssues = []
+    }
+    
+    private func saveEditing(_ entry: PendingTimeEntry) {
+        guard let project = editProject,
+              let tracker = editTracker,
+              let issue = editIssue,
+              let activity = editActivity else {
+            return
+        }
+        
+        let updatedTimeEntry = RedmineTimeEntry(
+            projectId: project.id,
+            issueId: issue.id,
+            activityId: activity.id,
+            spentOn: dateFormatter.string(from: editDate),
+            hours: editHours,
+            comments: editComments
+        )
+        
+        let updatedEntry = PendingTimeEntry(
+            id: entry.id,
+            timeEntry: updatedTimeEntry,
+            projectName: project.name,
+            trackerId: tracker.id,
+            trackerName: tracker.name,
+            issueSubject: issue.subject,
+            issueId: issue.id,
+            activityName: activity.name
+        )
+        
+        viewModel.updatePendingTimeEntry(updatedEntry)
+        cancelEditing()
+    }
+    
+    private func loadEditIssues(projectId: Int, trackerId: Int) {
+        isLoadingEditIssues = true
+        
+        Task {
+            do {
+                let fetchedIssues = try await viewModel.fetchRedmineIssues(projectId: projectId, trackerId: trackerId)
+                await MainActor.run {
+                    editIssues = fetchedIssues
+                    isLoadingEditIssues = false
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    showingError = true
+                    isLoadingEditIssues = false
+                }
+            }
+        }
     }
 
     // MARK: - Data Loading
@@ -401,6 +745,7 @@ struct RedmineTimeEntryView: View {
 
     private func addToList() {
         guard let project = selectedProject,
+              let tracker = selectedTracker,
               let issue = selectedIssue,
               let activity = selectedActivity else {
             return
@@ -418,6 +763,8 @@ struct RedmineTimeEntryView: View {
         let pendingEntry = PendingTimeEntry(
             timeEntry: timeEntry,
             projectName: project.name,
+            trackerId: tracker.id,
+            trackerName: tracker.name,
             issueSubject: issue.subject,
             issueId: issue.id,
             activityName: activity.name

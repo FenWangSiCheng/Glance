@@ -130,10 +130,14 @@ actor RedmineService {
 
     // MARK: - Fetch Issues
 
-    func fetchIssues(projectId: Int, trackerId: Int) async throws -> [RedmineIssue] {
-        let response: RedmineIssuesResponse = try await performRequest(
-            path: "/issues.json?project_id=\(projectId)&tracker_id=\(trackerId)"
-        )
+    func fetchIssues(projectId: Int, trackerId: Int?) async throws -> [RedmineIssue] {
+        let path: String
+        if let trackerId = trackerId {
+            path = "/issues.json?project_id=\(projectId)&tracker_id=\(trackerId)"
+        } else {
+            path = "/issues.json?project_id=\(projectId)"
+        }
+        let response: RedmineIssuesResponse = try await performRequest(path: path)
         return response.issues
     }
 
