@@ -31,6 +31,10 @@ struct RedmineTimeEntryView: View {
     @State private var showingResult = false
     @State private var emailSendResult: EmailSendResult?
     @State private var submittedEntries: [PendingTimeEntry] = []
+
+    // Confirmation dialogs
+    @State private var showingClearConfirmation = false
+    @State private var showingSubmitConfirmation = false
     
     // Editing state
     @State private var editingEntryId: UUID?
@@ -71,7 +75,7 @@ struct RedmineTimeEntryView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
-                    submitAll()
+                    showingSubmitConfirmation = true
                 } label: {
                     HStack(spacing: 6) {
                         if isSubmitting {
@@ -116,6 +120,30 @@ struct RedmineTimeEntryView: View {
                     Text("成功: \(result.success) 条，失败: \(result.failed) 条\n失败的记录已保留在列表中")
                 }
             }
+        }
+        .confirmationDialog(
+            "确定要清空所有工时记录吗？",
+            isPresented: $showingClearConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("清空所有", role: .destructive) {
+                viewModel.clearPendingTimeEntries()
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("此操作不可撤销")
+        }
+        .confirmationDialog(
+            "确定要提交全部工时记录吗？",
+            isPresented: $showingSubmitConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("提交全部") {
+                submitAll()
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("将提交 \(viewModel.pendingTimeEntries.count) 条工时记录到 Redmine")
         }
     }
 
@@ -257,7 +285,7 @@ struct RedmineTimeEntryView: View {
                 Spacer()
                 if !viewModel.pendingTimeEntries.isEmpty {
                     Button {
-                        viewModel.clearPendingTimeEntries()
+                        showingClearConfirmation = true
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "trash")
@@ -739,12 +767,7 @@ struct RedmineTimeEntryView: View {
                 showingResult = true
                 isSubmitting = false
 
-                if result.failed == 0 && result.success > 0 {
-                    // All submitted successfully, navigate back to todos
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                        viewModel.selectedDestination = .todos
-                    }
-                }
+                // Don't clear the list or navigate away after successful submission
             }
         }
     }

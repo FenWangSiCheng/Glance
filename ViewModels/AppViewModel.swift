@@ -95,6 +95,7 @@ class AppViewModel: ObservableObject {
     @Published var cachedRedmineActivities: [RedmineActivity] = []
     @Published var isLoadingRedmineData = false
     private var redmineDataLoaded = false
+    private var cachedRedmineIssues: [Int: [RedmineIssue]] = [:]  // projectId -> issues
 
     // Time entry generation state
     @Published var isGeneratingTimeEntries = false
@@ -147,7 +148,7 @@ class AppViewModel: ObservableObject {
         self.emailUserName = UserDefaults.standard.string(forKey: "emailUserName") ?? ""
         self.senderEmail = UserDefaults.standard.string(forKey: "senderEmail") ?? ""
         self.emailPassword = KeychainHelper.emailPassword ?? ""
-        self.recipientEmails = UserDefaults.standard.string(forKey: "recipientEmails") ?? ""
+        self.recipientEmails = UserDefaults.standard.string(forKey: "recipientEmails") ?? "staff-ml@fenrir-inc.com.cn"
         self.smtpHost = UserDefaults.standard.string(forKey: "smtpHost") ?? "smtp.exmail.qq.com"
         self.smtpPort = UserDefaults.standard.string(forKey: "smtpPort") ?? "465"
         self.emailUseSSL = UserDefaults.standard.object(forKey: "emailUseSSL") as? Bool ?? true
@@ -678,6 +679,7 @@ class AppViewModel: ObservableObject {
     func clearRedmineCache() {
         cachedRedmineProjects = []
         cachedRedmineActivities = []
+        cachedRedmineIssues = [:]
         redmineDataLoaded = false
         print("🗑️ [AppViewModel] Redmine cache cleared")
     }
@@ -719,7 +721,8 @@ class AppViewModel: ObservableObject {
             }
         }
 
-        pendingTimeEntries = failedEntries
+        // Keep all entries in the list, don't clear successful ones
+        // pendingTimeEntries = failedEntries
         return (successCount, failedEntries.count)
     }
 
@@ -758,12 +761,29 @@ class AppViewModel: ObservableObject {
             let redmineService = RedmineService(baseURL: redmineURL, apiKey: redmineAPIKey)
             let aiService = AIService(apiKey: openAIAPIKey, baseURL: openAIBaseURL, model: selectedModel)
 
-            // 2. Fetch projects and activities in parallel
-            generationProgress = "正在获取项目和活动类型..."
-            async let projectsResult = redmineService.fetchProjects()
-            async let activitiesResult = redmineService.fetchActivities()
-            
-            let (projects, activities) = try await (projectsResult, activitiesResult)
+            // 2. Use cached data if available, otherwise fetch
+            let projects: [RedmineProject]
+            let activities: [RedmineActivity]
+
+            if redmineDataLoaded && !cachedRedmineProjects.isEmpty && !cachedRedmineActivities.isEmpty {
+                print("📦 [AppViewModel] Using cached Redmine data")
+                projects = cachedRedmineProjects
+                activities = cachedRedmineActivities
+            } else {
+                generationProgress = "正在获取项目和活动类型..."
+                async let projectsResult = redmineService.fetchProjects()
+                async let activitiesResult = redmineService.fetchActivities()
+
+                let (fetchedProjects, fetchedActivities) = try await (projectsResult, activitiesResult)
+                projects = fetchedProjects
+                activities = fetchedActivities
+
+                // Cache the fetched data
+                cachedRedmineProjects = projects
+                cachedRedmineActivities = activities
+                redmineDataLoaded = true
+                print("✅ [AppViewModel] Fetched and cached Redmine data")
+            }
             
             guard !projects.isEmpty else {
                 showError("未找到可用的 Redmine 项目，请检查账号权限")
@@ -803,84 +823,156 @@ class AppViewModel: ObservableObject {
             let todayString = dateFormatter.string(from: Date())
 
             print("🔍 [AppViewModel] Grouped by project: \(groupedByProject.count) groups")
+
+            // 4a. Fetch all project issues in parallel
+            generationProgress = "正在获取任务列表..."
+            let projectIds = Array(groupedByProject.keys)
+            var projectIssuesMap: [Int: [RedmineIssue]] = [:]
+
+            // Snapshot of cached issues for use in TaskGroup
+            let cachedIssuesSnapshot = cachedRedmineIssues
+
+            let fetchResults = await withTaskGroup(of: (Int, [RedmineIssue]?).self) { group -> [(Int, [RedmineIssue]?)] in
+                for projectId in projectIds {
+                    group.addTask {
+                        if let cachedIssues = cachedIssuesSnapshot[projectId] {
+                            print("📦 [AppViewModel] Using cached issues for project \(projectId)")
+                            return (projectId, cachedIssues)
+                        }
+                        do {
+                            let fetchedIssues = try await redmineService.fetchIssues(projectId: projectId)
+                            print("✅ [AppViewModel] Fetched \(fetchedIssues.count) issues for project \(projectId)")
+                            return (projectId, fetchedIssues)
+                        } catch {
+                            print("❌ [AppViewModel] Failed to fetch issues for project \(projectId): \(error)")
+                            return (projectId, nil)
+                        }
+                    }
+                }
+
+                var results: [(Int, [RedmineIssue]?)] = []
+                for await result in group {
+                    results.append(result)
+                }
+                return results
+            }
+
+            // Process results on MainActor
+            for (projectId, issues) in fetchResults {
+                if let issues = issues {
+                    projectIssuesMap[projectId] = issues
+                    // Update cache
+                    if cachedRedmineIssues[projectId] == nil {
+                        cachedRedmineIssues[projectId] = issues
+                    }
+                }
+            }
+
+            // 4b. Match all todos to issues in parallel
+            generationProgress = "AI 正在匹配任务..."
+
+            // Prepare match tasks with all needed context
+            struct MatchTask {
+                let match: ProjectMatchResult
+                let issues: [RedmineIssue]
+                let originalTodo: TodoItem?
+            }
+
+            var matchTasks: [MatchTask] = []
             for (projectId, matches) in groupedByProject {
-                print("🔍 [AppViewModel] Processing projectId: \(projectId) with \(matches.count) matches")
+                guard let issues = projectIssuesMap[projectId], !issues.isEmpty else {
+                    print("⚠️ [AppViewModel] No issues found for project \(projectId), skipping")
+                    continue
+                }
+                for match in matches {
+                    let originalTodo = completedTodos.first { $0.title == match.todoTitle }
+                    matchTasks.append(MatchTask(match: match, issues: issues, originalTodo: originalTodo))
+                }
+            }
 
-                // Fetch all issues for this project (no tracker filter)
-                generationProgress = "正在获取任务列表..."
-                let issues = try await redmineService.fetchIssues(projectId: projectId)
-                print("✅ [AppViewModel] Fetched \(issues.count) issues for project \(projectId)")
+            // Result struct for parallel processing
+            struct MatchResult {
+                let match: ProjectMatchResult
+                let issueMatch: IssueMatchResult
+                let issues: [RedmineIssue]
+                let originalTodo: TodoItem?
+            }
 
-                guard !issues.isEmpty else {
-                    print("⚠️ [AppViewModel] No issues found for project \(projectId), skipping all matches")
+            let matchResults: [MatchResult] = await withTaskGroup(of: MatchResult?.self) { group in
+                for task in matchTasks {
+                    group.addTask {
+                        do {
+                            let issueMatch = try await aiService.matchIssue(
+                                todoTitle: task.match.todoTitle,
+                                description: task.originalTodo?.description,
+                                issues: task.issues
+                            )
+                            print("🔍 [AppViewModel] Matched todo '\(task.match.todoTitle)' to issue \(issueMatch.issueId)")
+                            return MatchResult(
+                                match: task.match,
+                                issueMatch: issueMatch,
+                                issues: task.issues,
+                                originalTodo: task.originalTodo
+                            )
+                        } catch {
+                            print("❌ [AppViewModel] Failed to match issue for '\(task.match.todoTitle)': \(error)")
+                            return nil
+                        }
+                    }
+                }
+
+                var results: [MatchResult] = []
+                for await result in group {
+                    if let result = result {
+                        results.append(result)
+                    }
+                }
+                return results
+            }
+
+            // 4c. Process all match results and create pending entries
+            for result in matchResults {
+                let projectId = result.match.projectId
+                let issueId = result.issueMatch.issueId
+
+                guard let matchedIssue = result.issues.first(where: { $0.id == issueId }) else {
+                    print("⚠️ [AppViewModel] Could not find matched issue with id=\(issueId)")
                     continue
                 }
 
-                for match in matches {
-                    print("🔍 [AppViewModel] Processing todo: \(match.todoTitle)")
+                let project = projects.first(where: { $0.id == projectId })
+                let activity = activities.first(where: { $0.id == result.match.activityId })
 
-                    // AI matches issue
-                    print("🔍 [AppViewModel] Matching issue for todo: \(match.todoTitle)")
-                    
-                    // Get the original todo to access its description
-                    let originalTodo = completedTodos.first { $0.title == match.todoTitle }
-                    
-                    let issueMatch = try await aiService.matchIssue(
-                        todoTitle: match.todoTitle,
-                        description: originalTodo?.description,
-                        issues: issues
+                if let project = project, let activity = activity {
+                    let actualHours = todoHoursMap[result.match.todoTitle] ?? 0
+
+                    var finalComments = String(result.match.comments.prefix(20))
+                    if let issueKey = result.originalTodo?.issueKey {
+                        finalComments = "[\(issueKey)] \(finalComments)"
+                    }
+
+                    let timeEntry = RedmineTimeEntry(
+                        projectId: projectId,
+                        issueId: matchedIssue.id,
+                        activityId: activity.id,
+                        spentOn: todayString,
+                        hours: String(actualHours),
+                        comments: finalComments
                     )
-                    let issueId = issueMatch.issueId
-                    print("🔍 [AppViewModel] Issue match result: issueId=\(issueId), issueSubject=\(issueMatch.issueSubject)")
 
-                    // Get matched issue
-                    guard let matchedIssue = issues.first(where: { $0.id == issueId }) else {
-                        print("⚠️ [AppViewModel] Could not find matched issue with id=\(issueId)")
-                        continue
-                    }
-                    
-                    let project = projects.first(where: { $0.id == projectId })
-                    let activity = activities.first(where: { $0.id == match.activityId })
+                    let pendingEntry = PendingTimeEntry(
+                        timeEntry: timeEntry,
+                        projectName: project.name,
+                        issueSubject: matchedIssue.subject,
+                        issueId: matchedIssue.id,
+                        activityName: activity.name
+                    )
 
-                    print("🔍 [AppViewModel] Condition check:")
-                    print("   - matchedIssue: found (\(matchedIssue.subject))")
-                    print("   - project: \(project != nil ? "found (\(project!.name))" : "nil")")
-                    print("   - activity: \(activity != nil ? "found (\(activity!.name))" : "nil (activityId=\(match.activityId))")")
-
-                    if let project = project,
-                       let activity = activity {
-                        
-                        let actualHours = todoHoursMap[match.todoTitle] ?? 0
-                        print("🔍 [AppViewModel] Using actual hours for '\(match.todoTitle)': \(actualHours)")
-
-                        var finalComments = String(match.comments.prefix(20))
-                        if let issueKey = originalTodo?.issueKey {
-                            finalComments = "[\(issueKey)] \(finalComments)"
-                        }
-
-                        let timeEntry = RedmineTimeEntry(
-                            projectId: projectId,
-                            issueId: matchedIssue.id,
-                            activityId: activity.id,
-                            spentOn: todayString,
-                            hours: String(actualHours),
-                            comments: finalComments
-                        )
-
-                        let pendingEntry = PendingTimeEntry(
-                            timeEntry: timeEntry,
-                            projectName: project.name,
-                            issueSubject: matchedIssue.subject,
-                            issueId: matchedIssue.id,
-                            activityName: activity.name
-                        )
-
-                        pendingTimeEntries.append(pendingEntry)
-                        generatedCount += 1
-                        print("✅ [AppViewModel] Added pending entry for: \(match.todoTitle)")
-                    } else {
-                        print("⚠️ [AppViewModel] Could not create entry for: \(match.todoTitle) - missing required data")
-                    }
+                    pendingTimeEntries.append(pendingEntry)
+                    generatedCount += 1
+                    print("✅ [AppViewModel] Added pending entry for: \(result.match.todoTitle)")
+                } else {
+                    print("⚠️ [AppViewModel] Could not create entry for: \(result.match.todoTitle) - missing required data")
                 }
             }
 
