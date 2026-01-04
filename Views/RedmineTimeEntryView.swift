@@ -341,22 +341,26 @@ struct RedmineTimeEntryView: View {
     // MARK: - Data Loading
 
     private func loadInitialData() {
+        // Use cached data if available
+        if !viewModel.cachedRedmineProjects.isEmpty {
+            projects = viewModel.cachedRedmineProjects
+            trackers = viewModel.cachedRedmineTrackers
+            activities = viewModel.cachedRedmineActivities
+            return
+        }
+        
         isLoadingProjects = true
         isLoadingTrackers = true
         isLoadingActivities = true
 
         Task {
             do {
-                async let projectsResult = viewModel.fetchRedmineProjects()
-                async let trackersResult = viewModel.fetchRedmineTrackers()
-                async let activitiesResult = viewModel.fetchRedmineActivities()
-
-                let (fetchedProjects, fetchedTrackers, fetchedActivities) = try await (projectsResult, trackersResult, activitiesResult)
-
+                try await viewModel.loadRedmineInitialDataIfNeeded()
+                
                 await MainActor.run {
-                    projects = fetchedProjects
-                    trackers = fetchedTrackers
-                    activities = fetchedActivities
+                    projects = viewModel.cachedRedmineProjects
+                    trackers = viewModel.cachedRedmineTrackers
+                    activities = viewModel.cachedRedmineActivities
                     isLoadingProjects = false
                     isLoadingTrackers = false
                     isLoadingActivities = false

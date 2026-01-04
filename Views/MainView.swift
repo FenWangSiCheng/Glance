@@ -164,7 +164,11 @@ struct TodosDetailView: View {
     @State private var editingText: String = ""
     @State private var newTodoText: String = ""
     @State private var showingClearAllConfirmation = false
+    @State private var showingHoursInput = false
+    @State private var todoToComplete: TodoItem?
+    @State private var hoursInput: String = ""
     @FocusState private var isNewTodoFocused: Bool
+    @FocusState private var isHoursInputFocused: Bool
 
     private var standardAnimation: Animation? {
         reduceMotion ? nil : .spring(response: 0.3)
@@ -263,6 +267,28 @@ struct TodosDetailView: View {
         } message: {
             Text("此操作不可撤销")
         }
+        .sheet(isPresented: $showingHoursInput) {
+            HoursInputSheet(
+                todoTitle: todoToComplete?.title ?? "",
+                hoursInput: $hoursInput,
+                isHoursInputFocused: _isHoursInputFocused,
+                onConfirm: {
+                    if let todo = todoToComplete,
+                       let hours = Double(hoursInput),
+                       hours > 0 {
+                        viewModel.completeTodoWithHours(todo, hours: hours)
+                        showingHoursInput = false
+                        hoursInput = ""
+                        todoToComplete = nil
+                    }
+                },
+                onCancel: {
+                    showingHoursInput = false
+                    hoursInput = ""
+                    todoToComplete = nil
+                }
+            )
+        }
         .overlay {
             if viewModel.isGeneratingTodos {
                 generatingOverlay
@@ -335,7 +361,15 @@ struct TodosDetailView: View {
                     isEditing: editingTodo?.id == item.id,
                     editingText: $editingText,
                     reduceMotion: reduceMotion,
-                    onToggle: { viewModel.toggleTodoCompletion(item) },
+                    onToggle: {
+                        if !item.isCompleted {
+                            todoToComplete = item
+                            hoursInput = ""
+                            showingHoursInput = true
+                        } else {
+                            viewModel.toggleTodoCompletion(item)
+                        }
+                    },
                     onDelete: { viewModel.deleteTodo(item) },
                     onStartEdit: {
                         editingTodo = item
@@ -621,6 +655,21 @@ struct TodoItemRow: View {
                         .foregroundStyle(Color(.secondaryLabelColor))
                     }
                 }
+                
+                // Actual hours badge (if completed and has hours)
+                if item.isCompleted, let hours = item.actualHours {
+                    HStack(spacing: 2) {
+                        Image(systemName: "clock.fill")
+                            .font(.caption2)
+                        Text(String(format: "%.1fh", hours))
+                            .font(.caption)
+                            .fontWeight(.medium)
+                    }
+                    .foregroundStyle(.green)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.green.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
+                }
 
                 Spacer()
             }
@@ -766,6 +815,61 @@ struct EmptyStateView: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(title)，\(subtitle)")
         .accessibilityAddTraits(.isHeader)
+    }
+}
+
+// MARK: - Hours Input Sheet
+struct HoursInputSheet: View {
+    let todoTitle: String
+    @Binding var hoursInput: String
+    @FocusState var isHoursInputFocused: Bool
+    let onConfirm: () -> Void
+    let onCancel: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("输入完成工时")
+                .font(.title2)
+                .fontWeight(.semibold)
+            
+            Text(todoTitle)
+                .font(.body)
+                .foregroundStyle(Color(.secondaryLabelColor))
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+            
+            HStack(spacing: 8) {
+                TextField("工时（小时）", text: $hoursInput)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 150)
+                    .focused($isHoursInputFocused)
+                    .onSubmit {
+                        onConfirm()
+                    }
+                
+                Text("小时")
+                    .foregroundStyle(Color(.secondaryLabelColor))
+            }
+            
+            HStack(spacing: 12) {
+                Button("取消") {
+                    onCancel()
+                }
+                .keyboardShortcut(.cancelAction)
+                
+                Button("确定") {
+                    onConfirm()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(hoursInput.isEmpty || Double(hoursInput) == nil || Double(hoursInput)! <= 0)
+            }
+        }
+        .padding(24)
+        .frame(width: 400)
+        .onAppear {
+            isHoursInputFocused = true
+        }
     }
 }
 

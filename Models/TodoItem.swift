@@ -10,6 +10,7 @@ struct TodoItem: Identifiable, Codable, Hashable {
     let id: UUID
     var title: String
     var isCompleted: Bool
+    var actualHours: Double?
     let source: TodoSource
     let issueKey: String?
     let issueURL: String?
@@ -26,6 +27,7 @@ struct TodoItem: Identifiable, Codable, Hashable {
         id: UUID = UUID(),
         title: String,
         isCompleted: Bool = false,
+        actualHours: Double? = nil,
         source: TodoSource,
         issueKey: String? = nil,
         issueURL: String? = nil,
@@ -41,6 +43,7 @@ struct TodoItem: Identifiable, Codable, Hashable {
         self.id = id
         self.title = title
         self.isCompleted = isCompleted
+        self.actualHours = actualHours
         self.source = source
         self.issueKey = issueKey
         self.issueURL = issueURL

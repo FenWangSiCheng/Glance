@@ -42,95 +42,6 @@ actor AIService {
         self.backlogURL = backlogURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
     }
 
-    func generateTodoList(from issues: [BacklogIssue], calendarEvents: [CalendarEvent] = []) async throws -> [TodoItem] {
-        guard !apiKey.isEmpty else {
-            throw AIError.invalidConfiguration
-        }
-
-        let prompt = buildPrompt(from: issues, calendarEvents: calendarEvents)
-        let response = try await sendRequest(prompt: prompt)
-        let todoItems = try parseTodoItems(from: response, issues: issues)
-
-        return todoItems
-    }
-
-    private func buildPrompt(from issues: [BacklogIssue], calendarEvents: [CalendarEvent] = []) -> String {
-        var issueDescriptions = ""
-        for issue in issues {
-            issueDescriptions += """
-
-            ---
-            票据编号: \(issue.issueKey)
-            标题: \(issue.summary)
-            描述: \(issue.description ?? "无描述")
-            优先级: \(issue.priorityDisplayName)
-            开始日期: \(issue.startDate ?? "无开始日期")
-            截止日期: \(issue.dueDate ?? "无截止日期")
-            """
-        }
-        
-        var calendarInfo = ""
-        if !calendarEvents.isEmpty {
-            calendarInfo = """
-            
-            
-            以下是今天的日历事件（仅供参考，帮助你更好地安排今天的 Backlog 任务优先级）:
-            """
-            
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "yyyy-MM-dd HH:mm"
-            
-            for event in calendarEvents {
-                let startTime = dateFormatter.string(from: event.startDate)
-                let endTime = dateFormatter.string(from: event.endDate)
-                calendarInfo += """
-                
-                
-                ---
-                日历事件: \(event.title)
-                时间: \(startTime) - \(endTime)
-                \(event.location != nil ? "地点: \(event.location!)" : "")
-                """
-            }
-            
-            calendarInfo += """
-            
-            
-            注意：日历事件会自动显示在待办列表中，你只需要排序 Backlog 票据即可。
-            在排序时，请考虑今天的会议时间安排，优先处理会议前后有空档的紧急任务。
-            """
-        }
-
-        return """
-        你是一个专业的任务排序助手。请根据以下 Backlog 票据生成今天的待办清单。
-
-        要求:
-        1. 每个票据就是一个待办项，不需要拆解
-        2. 这是**今天的待办清单**，请根据优先级、截止日期、今天的日历安排综合考虑
-        3. 排序规则（按重要性递减）：
-           - 今天截止或即将截止的任务优先
-           - 优先级高的任务优先
-           - 考虑今天的会议时间，合理安排任务顺序
-           - 将简单快速的任务安排在会议间隙
-
-        请以 JSON 格式返回，格式如下:
-        {
-            "tasks": [
-                {
-                    "issueKey": "票据编号",
-                    "title": "票据标题"
-                }
-            ]
-        }
-
-        以下是需要排序的票据:
-        \(issueDescriptions)
-        \(calendarInfo)
-
-        请直接返回 JSON，不要包含其他文字说明。按照建议的执行顺序排列任务。
-        """
-    }
-
     private func sendRequest(prompt: String) async throws -> String {
         let urlString = "\(baseURL)/chat/completions"
 
@@ -180,46 +91,6 @@ actor AIService {
             throw AIError.decodingError(error)
         } catch {
             throw AIError.networkError(error)
-        }
-    }
-
-    private func parseTodoItems(from response: String, issues: [BacklogIssue]) throws -> [TodoItem] {
-        var jsonString = response.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        if jsonString.hasPrefix("```json") {
-            jsonString = String(jsonString.dropFirst(7))
-        } else if jsonString.hasPrefix("```") {
-            jsonString = String(jsonString.dropFirst(3))
-        }
-        if jsonString.hasSuffix("```") {
-            jsonString = String(jsonString.dropLast(3))
-        }
-        jsonString = jsonString.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard let data = jsonString.data(using: .utf8) else {
-            throw AIError.decodingError(NSError(domain: "AIService", code: -1, userInfo: [NSLocalizedDescriptionKey: "无法解析响应数据"]))
-        }
-
-        let issueMap = Dictionary(uniqueKeysWithValues: issues.map { ($0.issueKey, $0) })
-
-        do {
-            let parsed = try JSONDecoder().decode(AITaskResponse.self, from: data)
-
-            return parsed.tasks.compactMap { task -> TodoItem? in
-                guard let issue = issueMap[task.issueKey] else { return nil }
-                let issueURL = "\(backlogURL)/view/\(task.issueKey)"
-                return .backlog(
-                    title: task.title,
-                    issueKey: task.issueKey,
-                    issueURL: issueURL,
-                    priority: issue.priority?.name,
-                    startDate: issue.startDate,
-                    dueDate: issue.dueDate,
-                    milestoneNames: issue.milestoneNames.isEmpty ? nil : issue.milestoneNames
-                )
-            }
-        } catch {
-            throw AIError.decodingError(error)
         }
     }
 
@@ -361,8 +232,7 @@ actor AIService {
            - 标题包含「サポート」「支持」「問い合わせ」「咨询」「質問」等关键词 → 选择 支持/Support 相关的跟踪器
            - 如果标题关键词不明确，默认选择「開発」或「タスク」类跟踪器
         3. 根据任务内容推断活动类型（开发/设计/测试/会议等），从可用的活动类型中选择
-        4. 估算合理工时（0.5-4小时）
-        5. 生成简洁的工作描述（20字以内，例如："完成登录功能开发"）
+        4. 生成简洁的工作描述（20字以内，例如："完成登录功能开发"）
 
         ## 返回 JSON 格式（只返回 JSON，不要其他文字）
         {
@@ -375,7 +245,6 @@ actor AIService {
               "trackerName": "開発",
               "activityId": 8,
               "activityName": "活动名称",
-              "hours": 1.5,
               "comments": "完成了XX功能"
             }
           ]
@@ -385,6 +254,7 @@ actor AIService {
         - projectId 和 projectName 必须从上面的项目列表中选择，不能为 null
         - trackerId 和 trackerName 必须从上面的跟踪器列表中选择，不能为 null
         - activityId 和 activityName 必须从上面的活动类型列表中选择
+        - 不需要返回 hours 字段，实际工时由用户在完成任务时输入
         """
     }
 
@@ -445,7 +315,9 @@ actor AIService {
             for entry in parsed.entries {
                 print("   - Todo: \(entry.todoTitle)")
                 print("     ProjectId: \(entry.projectId), ProjectName: \(entry.projectName)")
-                print("     ActivityId: \(entry.activityId), ActivityName: \(entry.activityName), Hours: \(entry.hours)")
+                print("     TrackerId: \(entry.trackerId), TrackerName: \(entry.trackerName)")
+                print("     ActivityId: \(entry.activityId), ActivityName: \(entry.activityName)")
+                print("     Comments: \(entry.comments)")
             }
             return parsed.entries
         } catch {
@@ -499,15 +371,6 @@ private struct DeepSeekErrorResponse: Codable {
     }
 }
 
-private struct AITaskResponse: Codable {
-    let tasks: [AITask]
-
-    struct AITask: Codable {
-        let issueKey: String
-        let title: String
-    }
-}
-
 // MARK: - Redmine Matching Response Models
 
 struct ProjectMatchResult: Codable {
@@ -518,7 +381,6 @@ struct ProjectMatchResult: Codable {
     let trackerName: String
     let activityId: Int
     let activityName: String
-    let hours: Double
     let comments: String
 }
 

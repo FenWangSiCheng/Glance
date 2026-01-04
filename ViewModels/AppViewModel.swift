@@ -87,6 +87,13 @@ class AppViewModel: ObservableObject {
     // Redmine state
     @Published var pendingTimeEntries: [PendingTimeEntry] = []
     @Published var redmineUser: RedmineUser?
+    
+    // Redmine cached data (loaded once)
+    @Published var cachedRedmineProjects: [RedmineProject] = []
+    @Published var cachedRedmineTrackers: [RedmineTracker] = []
+    @Published var cachedRedmineActivities: [RedmineActivity] = []
+    @Published var isLoadingRedmineData = false
+    private var redmineDataLoaded = false
 
     // Time entry generation state
     @Published var isGeneratingTimeEntries = false
@@ -107,7 +114,7 @@ class AppViewModel: ObservableObject {
     ]
 
     var isConfigured: Bool {
-        !backlogURL.isEmpty && !backlogAPIKey.isEmpty && !openAIAPIKey.isEmpty
+        !backlogURL.isEmpty && !backlogAPIKey.isEmpty
     }
 
     var isRedmineConfigured: Bool {
@@ -174,6 +181,68 @@ class AppViewModel: ObservableObject {
             UserDefaults.standard.set(data, forKey: Self.todoItemsKey)
         } catch {
             print("❌ [AppViewModel] Failed to save todo items: \(error)")
+        }
+    }
+
+    /// Convert Backlog issues to TodoItems with local sorting (no AI needed)
+    /// Sorting rules:
+    /// 1. Due today or overdue items first
+    /// 2. Higher priority items first
+    /// 3. Items with earlier due dates first
+    /// 4. Items with start dates before today first
+    private func convertIssuesToTodos(issues: [BacklogIssue], calendarEvents: [CalendarEvent]) -> [TodoItem] {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let today = dateFormatter.string(from: Date())
+        
+        // Sort issues by priority and due date
+        let sortedIssues = issues.sorted { issue1, issue2 in
+            // 1. Due today or overdue comes first
+            let issue1DueToday = issue1.dueDate != nil && issue1.dueDate! <= today
+            let issue2DueToday = issue2.dueDate != nil && issue2.dueDate! <= today
+            
+            if issue1DueToday != issue2DueToday {
+                return issue1DueToday
+            }
+            
+            // 2. Higher priority first (lower ID = higher priority in Backlog)
+            let priority1 = issue1.priority?.id ?? 999
+            let priority2 = issue2.priority?.id ?? 999
+            if priority1 != priority2 {
+                return priority1 < priority2
+            }
+            
+            // 3. Earlier due date first
+            if let due1 = issue1.dueDate, let due2 = issue2.dueDate {
+                if due1 != due2 {
+                    return due1 < due2
+                }
+            } else if issue1.dueDate != nil {
+                return true
+            } else if issue2.dueDate != nil {
+                return false
+            }
+            
+            // 4. Earlier start date first
+            if let start1 = issue1.startDate, let start2 = issue2.startDate {
+                return start1 < start2
+            }
+            
+            return false
+        }
+        
+        // Convert to TodoItems
+        return sortedIssues.map { issue in
+            let issueURL = "\(backlogURL)/view/\(issue.issueKey)"
+            return TodoItem.backlog(
+                title: issue.summary,
+                issueKey: issue.issueKey,
+                issueURL: issueURL,
+                priority: issue.priority?.name,
+                startDate: issue.startDate,
+                dueDate: issue.dueDate,
+                milestoneNames: issue.milestoneNames.isEmpty ? nil : issue.milestoneNames
+            )
         }
     }
 
@@ -288,14 +357,8 @@ class AppViewModel: ObservableObject {
             }
 
             if !issues.isEmpty {
-                print("🤖 [AppViewModel] Generating todo list...")
-                let aiService = AIService(
-                    apiKey: openAIAPIKey,
-                    baseURL: openAIBaseURL,
-                    model: selectedModel,
-                    backlogURL: backlogURL
-                )
-                backlogTodos = try await aiService.generateTodoList(from: issues, calendarEvents: calendarEvents)
+                print("📋 [AppViewModel] Converting issues to todo items...")
+                backlogTodos = convertIssuesToTodos(issues: issues, calendarEvents: calendarEvents)
             }
 
             todoItems = mergeTodoItems(
@@ -317,6 +380,16 @@ class AppViewModel: ObservableObject {
     func toggleTodoCompletion(_ todo: TodoItem) {
         if let index = todoItems.firstIndex(where: { $0.id == todo.id }) {
             todoItems[index].isCompleted.toggle()
+            if !todoItems[index].isCompleted {
+                todoItems[index].actualHours = nil
+            }
+        }
+    }
+    
+    func completeTodoWithHours(_ todo: TodoItem, hours: Double) {
+        if let index = todoItems.firstIndex(where: { $0.id == todo.id }) {
+            todoItems[index].isCompleted = true
+            todoItems[index].actualHours = hours
         }
     }
 
@@ -505,6 +578,48 @@ class AppViewModel: ObservableObject {
         let service = RedmineService(baseURL: redmineURL, apiKey: redmineAPIKey)
         return try await service.fetchActivities()
     }
+    
+    /// Load Redmine initial data (projects, trackers, activities) once and cache them
+    func loadRedmineInitialDataIfNeeded() async throws {
+        // Skip if already loaded
+        guard !redmineDataLoaded else {
+            print("📦 [AppViewModel] Redmine data already loaded, using cache")
+            return
+        }
+        
+        guard isRedmineConfigured else {
+            throw RedmineService.RedmineError.invalidConfiguration
+        }
+        
+        isLoadingRedmineData = true
+        defer { isLoadingRedmineData = false }
+        
+        print("🔄 [AppViewModel] Loading Redmine initial data...")
+        
+        let service = RedmineService(baseURL: redmineURL, apiKey: redmineAPIKey)
+        
+        async let projectsResult = service.fetchProjects()
+        async let trackersResult = service.fetchTrackers()
+        async let activitiesResult = service.fetchActivities()
+        
+        let (projects, trackers, activities) = try await (projectsResult, trackersResult, activitiesResult)
+        
+        cachedRedmineProjects = projects
+        cachedRedmineTrackers = trackers
+        cachedRedmineActivities = activities
+        redmineDataLoaded = true
+        
+        print("✅ [AppViewModel] Redmine data loaded: \(projects.count) projects, \(trackers.count) trackers, \(activities.count) activities")
+    }
+    
+    /// Clear cached Redmine data (e.g., when settings change)
+    func clearRedmineCache() {
+        cachedRedmineProjects = []
+        cachedRedmineTrackers = []
+        cachedRedmineActivities = []
+        redmineDataLoaded = false
+        print("🗑️ [AppViewModel] Redmine cache cleared")
+    }
 
     func addPendingTimeEntry(_ entry: PendingTimeEntry) {
         pendingTimeEntries.append(entry)
@@ -546,10 +661,16 @@ class AppViewModel: ObservableObject {
     func generateTimeEntriesForCompletedTodos() async {
         print("🚀 [AppViewModel] generateTimeEntriesForCompletedTodos started")
 
-        // 1. Get completed todos
         let completedTodos = todoItems.filter { $0.isCompleted }
         guard !completedTodos.isEmpty else {
             showError("没有已完成的待办事项")
+            return
+        }
+        
+        let todosWithoutHours = completedTodos.filter { $0.actualHours == nil || $0.actualHours! <= 0 }
+        if !todosWithoutHours.isEmpty {
+            let titles = todosWithoutHours.map { $0.title }.joined(separator: "\n")
+            showError("以下待办事项缺少工时记录：\n\n\(titles)\n\n请重新标记完成并输入工时")
             return
         }
 
@@ -597,7 +718,6 @@ class AppViewModel: ObservableObject {
             }
             print("✅ [AppViewModel] Fetched \(projects.count) projects, \(trackers.count) trackers, \(activities.count) activities")
 
-            // 3. AI matches projects + trackers + activities + hours in one call
             generationProgress = "AI 正在分析任务..."
             let projectMatches = try await aiService.matchProjectsTrackersAndActivities(
                 todos: completedTodos,
@@ -606,6 +726,13 @@ class AppViewModel: ObservableObject {
                 activities: activities
             )
             print("✅ [AppViewModel] AI returned \(projectMatches.count) matches (project + tracker + activity)")
+            
+            var todoHoursMap: [String: Double] = [:]
+            for todo in completedTodos {
+                if let hours = todo.actualHours {
+                    todoHoursMap[todo.title] = hours
+                }
+            }
 
             // 4. Group by project for batch processing
             let groupedByProject = Dictionary(grouping: projectMatches) { $0.projectId }
@@ -668,10 +795,11 @@ class AppViewModel: ObservableObject {
                        let project = project,
                        let activity = activity {
 
-                        // Find the original todo to get issueKey
                         let originalTodo = completedTodos.first { $0.title == match.todoTitle }
+                        
+                        let actualHours = todoHoursMap[match.todoTitle] ?? 0
+                        print("🔍 [AppViewModel] Using actual hours for '\(match.todoTitle)': \(actualHours)")
 
-                        // Build comments: include issueKey if from Backlog
                         var finalComments = String(match.comments.prefix(20))
                         if let issueKey = originalTodo?.issueKey {
                             finalComments = "[\(issueKey)] \(finalComments)"
@@ -682,7 +810,7 @@ class AppViewModel: ObservableObject {
                             issueId: matchedIssue.id,
                             activityId: activity.id,
                             spentOn: todayString,
-                            hours: String(match.hours),
+                            hours: String(actualHours),
                             comments: finalComments
                         )
 

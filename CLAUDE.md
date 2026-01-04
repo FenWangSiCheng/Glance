@@ -21,7 +21,7 @@ User clicks "获取票据并生成待办"
     → AppViewModel.fetchAndGenerateTodos()
         → BacklogService.fetchMyIssues()
         → CalendarService.fetchEvents() (if enabled)
-        → AIService.generateTodoList() - AI sorts issues by priority/dates
+        → convertIssuesToTodos() - local sorting by priority/due dates (no AI)
         → mergeTodoItems() - preserves custom todos and completion states
 ```
 
@@ -46,9 +46,9 @@ User clicks "生成工时记录"
 
 - **BacklogService** (`Services/BacklogService.swift`): Actor for Backlog API. Extracts host from full URL, fetches current user via `/users/myself`, then fetches assigned issues with status filters.
 
-- **AIService** (`Services/AIService.swift`): Actor for DeepSeek/OpenAI-compatible API. Two main functions:
-  - `generateTodoList()` - prioritizes Backlog issues considering calendar events
+- **AIService** (`Services/AIService.swift`): Actor for DeepSeek/OpenAI-compatible API. Used for Redmine time entry matching:
   - `matchProjectsTrackersAndActivities()` / `matchIssue()` - matches todos to Redmine entities for time entry generation
+  - Note: Todo list generation no longer uses AI - sorting is done locally by priority and due dates
 
 - **RedmineService** (`Services/RedmineService.swift`): Actor for Redmine REST API. Fetches projects, trackers, activities, issues, and submits time entries.
 

@@ -602,6 +602,9 @@ struct RedmineSettingsTab: View {
                         .textFieldStyle(.roundedBorder)
                         .accessibilityLabel("Redmine URL")
                         .accessibilityHint("输入 Redmine 服务器地址")
+                        .onChange(of: viewModel.redmineURL) { _ in
+                            viewModel.clearRedmineCache()
+                        }
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
@@ -612,6 +615,9 @@ struct RedmineSettingsTab: View {
                         .textFieldStyle(.roundedBorder)
                         .accessibilityLabel("Redmine API Key")
                         .accessibilityHint("输入从 Redmine 获取的 API 密钥")
+                        .onChange(of: viewModel.redmineAPIKey) { _ in
+                            viewModel.clearRedmineCache()
+                        }
                 }
             } header: {
                 HStack(spacing: 8) {
