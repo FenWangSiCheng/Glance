@@ -213,12 +213,6 @@ actor EmailService {
             isHTML: isHTML
         )
 
-        // Debug: Print email content
-        print("📧 [EmailService] Sending email content:")
-        print("---BEGIN EMAIL---")
-        print(emailContent)
-        print("---END EMAIL---")
-
         // Send email content and end with CRLF.CRLF
         try await sendCommand(connection: connection, command: emailContent + "\r\n.")
         let sendResponse = try await readResponse(connection: connection)
@@ -260,20 +254,20 @@ actor EmailService {
         // Content-Type based on isHTML
         let contentType = isHTML ? "text/html; charset=UTF-8" : "text/plain; charset=UTF-8"
         
-        // Use 8bit encoding for better readability instead of base64
-        var content = """
-        From: \(fromHeader)
-        To: \(recipients.joined(separator: ", "))
-        Subject: \(encodedSubject)
-        Date: \(dateString)
-        MIME-Version: 1.0
-        Content-Type: \(contentType)
-        Content-Transfer-Encoding: 8bit
-
-        """
-
-        // Directly append the body (no encoding needed for 8bit)
-        content += body
+        // SMTP requires CRLF (\r\n) as line separator
+        // Build headers with proper CRLF line endings
+        var headers: [String] = []
+        headers.append("From: \(fromHeader)")
+        headers.append("To: \(recipients.joined(separator: ", "))")
+        headers.append("Subject: \(encodedSubject)")
+        headers.append("Date: \(dateString)")
+        headers.append("MIME-Version: 1.0")
+        headers.append("Content-Type: \(contentType)")
+        headers.append("Content-Transfer-Encoding: 8bit")
+        
+        // Join headers with CRLF, then add blank line (CRLF CRLF) before body
+        let headerSection = headers.joined(separator: "\r\n")
+        let content = headerSection + "\r\n\r\n" + body
 
         return content
     }

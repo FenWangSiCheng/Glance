@@ -54,14 +54,14 @@ struct DailyReportData {
 
     // Generate HTML daily report
     func generateHTMLReport() -> String {
-        var html = """
+        var body = """
         各位好，我是\(userName)<br/>
         下面是今日的工作汇报，请查收。<br/><br/>
         ■ 今日成果 <br/>
         """
 
         for group in entriesByProject {
-            html += "<h3>\(group.projectName)</h3>\n"
+            body += "<h3>\(group.projectName)</h3>\n"
 
             // Combine work content for this project
             let contents = group.entries.map { entry -> String in
@@ -74,9 +74,23 @@ struct DailyReportData {
             let combinedContent = contents.joined(separator: "；")
 
             let hoursStr = String(format: "%.1f", group.totalHours)
-            html += "内容：\(combinedContent)<br/>时间：\(hoursStr)h\n"
+            body += "内容：\(combinedContent)<br/>时间：\(hoursStr)h<br/>\n"
         }
 
+        // Wrap in complete HTML structure for better email client compatibility
+        let html = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body>
+        \(body)
+        </body>
+        </html>
+        """
+        
         return html
     }
 
