@@ -1,0 +1,76 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger on version tags like v1.0.0
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Select Xcode version
+        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Build app
+        run: |
+          xcodebuild -project Glance.xcodeproj \
+            -scheme Glance \
+            -configuration Release \
+            -derivedDataPath build \
+            -arch arm64 -arch x86_64 \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Create DMG
+        run: |
+          # Find the built app
+          APP_PATH=$(find build -name "Glance.app" -type d | head -1)
+          echo "Found app at: $APP_PATH"
+
+          # Create a temporary directory for DMG contents
+          mkdir -p dmg_contents
+          cp -R "$APP_PATH" dmg_contents/
+
+          # Create a symlink to Applications folder
+          ln -s /Applications dmg_contents/Applications
+
+          # Create DMG
+          hdiutil create -volname "Glance" \
+            -srcfolder dmg_contents \
+            -ov -format UDZO \
+            "Glance-${{ github.ref_name }}.dmg"
+
+      - name: Create ZIP (alternative)
+        run: |
+          APP_PATH=$(find build -name "Glance.app" -type d | head -1)
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "Glance-${{ github.ref_name }}.zip"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Glance-${{ github.ref_name }}
+          path: |
+            Glance-${{ github.ref_name }}.dmg
+            Glance-${{ github.ref_name }}.zip
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            Glance-${{ github.ref_name }}.dmg
+            Glance-${{ github.ref_name }}.zip
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
