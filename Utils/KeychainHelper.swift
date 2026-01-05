@@ -90,55 +90,47 @@ enum KeychainHelper {
     }
 }
 
+// MARK: - Unified Credentials Storage
+
+struct Credentials: Codable {
+    var backlogAPIKey: String = ""
+    var openAIAPIKey: String = ""
+    var redmineAPIKey: String = ""
+    var emailPassword: String = ""
+}
+
 extension KeychainHelper {
-    enum Keys {
-        static let backlogAPIKey = "backlog_api_key"
-        static let openAIAPIKey = "openai_api_key"
-        static let redmineAPIKey = "redmine_api_key"
-        static let emailPassword = "email_password"
-    }
+    private static let credentialsKey = "credentials"
 
-    static var backlogAPIKey: String? {
-        get { get(key: Keys.backlogAPIKey) }
-        set {
-            if let value = newValue {
-                try? save(key: Keys.backlogAPIKey, value: value)
-            } else {
-                try? delete(key: Keys.backlogAPIKey)
-            }
+    static func getCredentials() -> Credentials {
+        guard let jsonString = get(key: credentialsKey),
+              let data = jsonString.data(using: .utf8) else {
+            return Credentials()
+        }
+        do {
+            return try JSONDecoder().decode(Credentials.self, from: data)
+        } catch {
+            print("❌ [KeychainHelper] Failed to decode credentials: \(error)")
+            return Credentials()
         }
     }
 
-    static var openAIAPIKey: String? {
-        get { get(key: Keys.openAIAPIKey) }
-        set {
-            if let value = newValue {
-                try? save(key: Keys.openAIAPIKey, value: value)
-            } else {
-                try? delete(key: Keys.openAIAPIKey)
+    static func saveCredentials(_ credentials: Credentials) {
+        do {
+            let data = try JSONEncoder().encode(credentials)
+            guard let jsonString = String(data: data, encoding: .utf8) else {
+                print("❌ [KeychainHelper] Failed to encode credentials to string")
+                return
             }
+            try save(key: credentialsKey, value: jsonString)
+        } catch {
+            print("❌ [KeychainHelper] Failed to save credentials: \(error)")
         }
     }
 
-    static var redmineAPIKey: String? {
-        get { get(key: Keys.redmineAPIKey) }
-        set {
-            if let value = newValue {
-                try? save(key: Keys.redmineAPIKey, value: value)
-            } else {
-                try? delete(key: Keys.redmineAPIKey)
-            }
-        }
-    }
-
-    static var emailPassword: String? {
-        get { get(key: Keys.emailPassword) }
-        set {
-            if let value = newValue {
-                try? save(key: Keys.emailPassword, value: value)
-            } else {
-                try? delete(key: Keys.emailPassword)
-            }
-        }
+    static func updateCredential(_ update: (inout Credentials) -> Void) {
+        var credentials = getCredentials()
+        update(&credentials)
+        saveCredentials(credentials)
     }
 }

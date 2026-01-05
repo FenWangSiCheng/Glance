@@ -20,10 +20,10 @@ class AppViewModel: ObservableObject {
         didSet { UserDefaults.standard.set(backlogURL, forKey: "backlogURL") }
     }
     @Published var backlogAPIKey: String {
-        didSet { KeychainHelper.backlogAPIKey = backlogAPIKey }
+        didSet { KeychainHelper.updateCredential { $0.backlogAPIKey = backlogAPIKey } }
     }
     @Published var openAIAPIKey: String {
-        didSet { KeychainHelper.openAIAPIKey = openAIAPIKey }
+        didSet { KeychainHelper.updateCredential { $0.openAIAPIKey = openAIAPIKey } }
     }
     @Published var openAIBaseURL: String {
         didSet { UserDefaults.standard.set(openAIBaseURL, forKey: "openAIBaseURL") }
@@ -51,7 +51,7 @@ class AppViewModel: ObservableObject {
         didSet { UserDefaults.standard.set(redmineURL, forKey: "redmineURL") }
     }
     @Published var redmineAPIKey: String {
-        didSet { KeychainHelper.redmineAPIKey = redmineAPIKey }
+        didSet { KeychainHelper.updateCredential { $0.redmineAPIKey = redmineAPIKey } }
     }
 
     // Email settings
@@ -65,7 +65,7 @@ class AppViewModel: ObservableObject {
         didSet { UserDefaults.standard.set(senderEmail, forKey: "senderEmail") }
     }
     @Published var emailPassword: String {
-        didSet { KeychainHelper.emailPassword = emailPassword }
+        didSet { KeychainHelper.updateCredential { $0.emailPassword = emailPassword } }
     }
     @Published var recipientEmails: String {
         didSet { UserDefaults.standard.set(recipientEmails, forKey: "recipientEmails") }
@@ -135,22 +135,25 @@ class AppViewModel: ObservableObject {
     }
 
     init() {
+        // Load all credentials from single Keychain item
+        let credentials = KeychainHelper.getCredentials()
+
         self.backlogURL = UserDefaults.standard.string(forKey: "backlogURL") ?? ""
-        self.backlogAPIKey = KeychainHelper.backlogAPIKey ?? ""
-        self.openAIAPIKey = KeychainHelper.openAIAPIKey ?? ""
+        self.backlogAPIKey = credentials.backlogAPIKey
+        self.openAIAPIKey = credentials.openAIAPIKey
         self.openAIBaseURL = UserDefaults.standard.string(forKey: "openAIBaseURL") ?? "https://api.deepseek.com"
         self.selectedModel = UserDefaults.standard.string(forKey: "selectedModel") ?? "deepseek-chat"
         self.calendarEnabled = UserDefaults.standard.bool(forKey: "calendarEnabled")
         self.selectedCalendarIds = UserDefaults.standard.stringArray(forKey: "selectedCalendarIds") ?? []
         self.calendarDaysAhead = UserDefaults.standard.integer(forKey: "calendarDaysAhead") != 0 ? UserDefaults.standard.integer(forKey: "calendarDaysAhead") : 1
         self.redmineURL = UserDefaults.standard.string(forKey: "redmineURL") ?? "https://fenrir-inc.cn/redmine"
-        self.redmineAPIKey = KeychainHelper.redmineAPIKey ?? ""
+        self.redmineAPIKey = credentials.redmineAPIKey
 
         // Email settings
         self.emailEnabled = UserDefaults.standard.bool(forKey: "emailEnabled")
         self.emailUserName = UserDefaults.standard.string(forKey: "emailUserName") ?? ""
         self.senderEmail = UserDefaults.standard.string(forKey: "senderEmail") ?? ""
-        self.emailPassword = KeychainHelper.emailPassword ?? ""
+        self.emailPassword = credentials.emailPassword
         self.recipientEmails = UserDefaults.standard.string(forKey: "recipientEmails") ?? "staff-ml@fenrir-inc.com.cn"
         self.smtpHost = UserDefaults.standard.string(forKey: "smtpHost") ?? "smtp.exmail.qq.com"
         self.smtpPort = UserDefaults.standard.string(forKey: "smtpPort") ?? "465"
