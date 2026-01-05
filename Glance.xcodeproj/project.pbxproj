@@ -18,6 +18,7 @@
 		76B16162821222300F34CCEA /* BacklogIssue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4039498C99012D43BC66D9DB /* BacklogIssue.swift */; };
 		8129E7AB72BD667C06C6C4A0 /* AppViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2F883B7CBE972B9793685AE /* AppViewModel.swift */; };
 		AFE1994D3301FB54D24E8C24 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE2B47E12323D3EF16EFCC5E /* MainView.swift */; };
+		ASSETS1BUILD234567890ABCD /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = ASSETS1234567890ABCDEF123 /* Assets.xcassets */; };
 		C16F5228E9651A016C7222E4 /* TodoItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2700AB7A2D50F847C91EE970 /* TodoItem.swift */; };
 		CFDC723952E7778F467F6D03 /* GlanceApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4745BDA533F6219F64C68AA7 /* GlanceApp.swift */; };
 		D44A9962844DA6C8F59F1109 /* BacklogService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C6B712A59D5D77B739679CA /* BacklogService.swift */; };
@@ -38,6 +39,7 @@
 		8C6B712A59D5D77B739679CA /* BacklogService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklogService.swift; sourceTree = "<group>"; };
 		95AC405DED9E21A3D914851C /* RedmineService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RedmineService.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6789012345678 /* CalendarEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEvent.swift; sourceTree = "<group>"; };
+		ASSETS1234567890ABCDEF123 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B2C3D4E5F678901234567890 /* CalendarService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarService.swift; sourceTree = "<group>"; };
 		C2F883B7CBE972B9793685AE /* AppViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppViewModel.swift; sourceTree = "<group>"; };
 		CE2B47E12323D3EF16EFCC5E /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
@@ -50,6 +52,7 @@
 			isa = PBXGroup;
 			children = (
 				4745BDA533F6219F64C68AA7 /* GlanceApp.swift */,
+				ASSETS1234567890ABCDEF123 /* Assets.xcassets */,
 				C4EAA0E46E5BBB53DFBD61CF /* Models */,
 				1C808B8BC56B19F00F994901 /* Services */,
 				E41FC0A436C205BDF6B1792A /* Utils */,
@@ -124,6 +127,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 8812D40211E0FBEAED4F31C9 /* Build configuration list for PBXNativeTarget "Glance" */;
 			buildPhases = (
+				RESOURCES1BUILD234567890AB /* Resources */,
 				32DD4C8A891B8A91C685238C /* Sources */,
 			);
 			buildRules = (
@@ -167,6 +171,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		RESOURCES1BUILD234567890AB /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				ASSETS1BUILD234567890ABCD /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		32DD4C8A891B8A91C685238C /* Sources */ = {
