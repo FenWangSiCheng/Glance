@@ -21,6 +21,7 @@ struct RedmineTimeEntryView: View {
     @State private var isLoadingIssues = false
     @State private var isLoadingActivities = false
     @State private var isSubmitting = false
+    @State private var isRefreshing = false
 
     // Error state
     @State private var errorMessage: String?
@@ -73,6 +74,25 @@ struct RedmineTimeEntryView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .navigationTitle("Redmine 工时")
         .toolbar {
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    refreshData()
+                } label: {
+                    HStack(spacing: 6) {
+                        if isRefreshing {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                                .accessibilityHidden(true)
+                        }
+                        Text("刷新")
+                    }
+                }
+                .disabled(isRefreshing || isLoadingProjects || isLoadingActivities)
+                .accessibilityLabel("刷新数据")
+                .accessibilityHint("重新获取 Redmine 项目和活动类型数据")
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     showingSubmitConfirmation = true
@@ -685,6 +705,37 @@ struct RedmineTimeEntryView: View {
                     showingError = true
                     isLoadingProjects = false
                     isLoadingActivities = false
+                }
+            }
+        }
+    }
+
+    private func refreshData() {
+        isRefreshing = true
+
+        // Reset form selections since data will be refreshed
+        selectedProject = nil
+        selectedIssue = nil
+        selectedActivity = nil
+        issues = []
+
+        // Clear cache and reload
+        viewModel.clearRedmineCache()
+
+        Task {
+            do {
+                try await viewModel.loadRedmineInitialDataIfNeeded()
+
+                await MainActor.run {
+                    projects = viewModel.cachedRedmineProjects
+                    activities = viewModel.cachedRedmineActivities
+                    isRefreshing = false
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    showingError = true
+                    isRefreshing = false
                 }
             }
         }

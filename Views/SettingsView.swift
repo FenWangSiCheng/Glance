@@ -269,6 +269,8 @@ struct AISettingsTab: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isTesting = false
     @State private var testResult: Bool?
+    @State private var customModel: String = ""
+    @State private var isUsingCustomModel: Bool = false
 
     private var standardAnimation: Animation? {
         reduceMotion ? nil : .spring(response: 0.3)
@@ -281,10 +283,10 @@ struct AISettingsTab: View {
                     Text("API Key")
                         .font(.subheadline)
                         .foregroundStyle(Color(.secondaryLabelColor))
-                    SecureField("输入 DeepSeek API Key", text: $viewModel.openAIAPIKey)
+                    SecureField("输入 AI API Key", text: $viewModel.openAIAPIKey)
                         .textFieldStyle(.roundedBorder)
-                        .accessibilityLabel("DeepSeek API Key")
-                        .accessibilityHint("输入你的 DeepSeek API 密钥")
+                        .accessibilityLabel("AI API Key")
+                        .accessibilityHint("输入你的 AI 服务 API 密钥")
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
@@ -295,7 +297,7 @@ struct AISettingsTab: View {
                         .textFieldStyle(.roundedBorder)
                         .accessibilityLabel("API Base URL")
                         .accessibilityHint("API 服务器地址")
-                    Text("默认使用 DeepSeek 官方 API，可更换为兼容的 API")
+                    Text("支持所有兼容 OpenAI SDK 的 API")
                         .font(.caption)
                         .foregroundStyle(Color(.tertiaryLabelColor))
                 }
@@ -304,25 +306,61 @@ struct AISettingsTab: View {
                     Text("模型选择")
                         .font(.subheadline)
                         .foregroundStyle(Color(.secondaryLabelColor))
-                    Picker("", selection: $viewModel.selectedModel) {
-                        ForEach(AppViewModel.availableModels, id: \.self) { model in
-                            HStack {
-                                modelIcon(for: model)
-                                Text(modelDisplayName(model))
+                    
+                    Picker("", selection: Binding(
+                        get: {
+                            if AppViewModel.availableModels.contains(viewModel.selectedModel) {
+                                return viewModel.selectedModel
+                            } else {
+                                return "custom"
                             }
-                            .tag(model)
-                            .accessibilityLabel(modelDisplayName(model))
+                        },
+                        set: { newValue in
+                            if newValue == "custom" {
+                                isUsingCustomModel = true
+                                if !customModel.isEmpty {
+                                    viewModel.selectedModel = customModel
+                                }
+                            } else {
+                                isUsingCustomModel = false
+                                viewModel.selectedModel = newValue
+                            }
                         }
+                    )) {
+                        ForEach(AppViewModel.availableModels, id: \.self) { model in
+                            Text(model).tag(model)
+                        }
+                        Text("Custom...").tag("custom")
                     }
                     .pickerStyle(.radioGroup)
                     .accessibilityLabel("选择 AI 模型")
+                    
+                    if isUsingCustomModel || !AppViewModel.availableModels.contains(viewModel.selectedModel) {
+                        TextField("输入自定义模型名", text: Binding(
+                            get: {
+                                if AppViewModel.availableModels.contains(viewModel.selectedModel) {
+                                    return customModel
+                                } else {
+                                    return viewModel.selectedModel
+                                }
+                            },
+                            set: { newValue in
+                                customModel = newValue
+                                if !newValue.isEmpty {
+                                    viewModel.selectedModel = newValue
+                                }
+                            }
+                        ))
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityLabel("自定义模型名")
+                    }
                 }
             } header: {
                 HStack(spacing: 8) {
                     Image(systemName: "cpu.fill")
                         .foregroundStyle(Color.accentColor)
                         .accessibilityHidden(true)
-                    Text("DeepSeek AI 配置")
+                    Text("AI 模型配置")
                         .font(.headline)
                         .foregroundStyle(Color(.labelColor))
                 }
@@ -330,39 +368,13 @@ struct AISettingsTab: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityAddTraits(.isHeader)
             } footer: {
-                connectionTestButton
-                    .padding(.top, 8)
+                VStack(alignment: .leading, spacing: 8) {
+                    connectionTestButton
+                }
+                .padding(.top, 8)
             }
         }
         .formStyle(.grouped)
-    }
-
-    private func modelIcon(for model: String) -> some View {
-        Group {
-            switch model {
-            case "deepseek-chat":
-                Image(systemName: "bubble.left.fill")
-                    .foregroundStyle(Color.accentColor)
-            case "deepseek-reasoner":
-                Image(systemName: "brain.head.profile")
-                    .foregroundStyle(Color(.systemPurple))
-            default:
-                Image(systemName: "cpu")
-                    .foregroundStyle(Color(.secondaryLabelColor))
-            }
-        }
-        .accessibilityHidden(true)
-    }
-
-    private func modelDisplayName(_ model: String) -> String {
-        switch model {
-        case "deepseek-chat":
-            return "DeepSeek Chat（快速）"
-        case "deepseek-reasoner":
-            return "DeepSeek Reasoner（推理增强）"
-        default:
-            return model
-        }
     }
 
     private var connectionTestButton: some View {
@@ -386,7 +398,7 @@ struct AISettingsTab: View {
             .buttonStyle(.bordered)
             .disabled(viewModel.openAIAPIKey.isEmpty || isTesting)
             .accessibilityLabel("测试 AI 连接")
-            .accessibilityHint(isTesting ? "正在测试中" : "验证 DeepSeek API 配置是否正确")
+            .accessibilityHint(isTesting ? "正在测试中" : "验证 AI API 配置是否正确")
 
             if let result = testResult {
                 HStack(spacing: 4) {

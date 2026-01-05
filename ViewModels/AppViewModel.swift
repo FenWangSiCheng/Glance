@@ -112,7 +112,10 @@ class AppViewModel: ObservableObject {
 
     static let availableModels = [
         "deepseek-chat",
-        "deepseek-reasoner"
+        "deepseek-reasoner",
+        "moonshot-v1-8k",
+        "moonshot-v1-32k",
+        "moonshot-v1-128k"
     ]
 
     var isConfigured: Bool {

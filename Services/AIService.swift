@@ -13,7 +13,7 @@ actor AIService {
         var errorDescription: String? {
             switch self {
             case .invalidConfiguration:
-                return "DeepSeek 配置无效，请检查 API Key"
+                return "AI 配置无效，请检查 API Key 和 Base URL"
             case .invalidURL:
                 return "无效的 URL"
             case .networkError(let error):
@@ -99,6 +99,7 @@ actor AIService {
             throw AIError.invalidConfiguration
         }
 
+        // 尝试使用 /models 端点测试连接
         let urlString = "\(baseURL)/models"
 
         guard let url = URL(string: urlString) else {
@@ -109,7 +110,58 @@ actor AIService {
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
         do {
-            let (_, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw AIError.invalidResponse
+            }
+
+            // 如果 /models 端点返回 404，尝试使用简单的 chat 请求测试
+            if httpResponse.statusCode == 404 {
+                print("⚠️ [AIService] /models endpoint not found, trying chat endpoint")
+                return try await testWithChatEndpoint()
+            }
+
+            if httpResponse.statusCode == 200 {
+                return true
+            } else {
+                // 打印错误响应以便调试
+                if let errorString = String(data: data, encoding: .utf8) {
+                    print("❌ [AIService] Test connection error response: \(errorString)")
+                }
+                throw AIError.apiError("HTTP \(httpResponse.statusCode)")
+            }
+        } catch let error as AIError {
+            throw error
+        } catch {
+            throw AIError.networkError(error)
+        }
+    }
+
+    private func testWithChatEndpoint() async throws -> Bool {
+        let urlString = "\(baseURL)/chat/completions"
+
+        guard let url = URL(string: urlString) else {
+            throw AIError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let requestBody: [String: Any] = [
+            "model": model,
+            "messages": [
+                ["role": "user", "content": "Hi"]
+            ],
+            "max_tokens": 10
+        ]
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
 
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw AIError.invalidResponse
@@ -118,6 +170,9 @@ actor AIService {
             if httpResponse.statusCode == 200 {
                 return true
             } else {
+                if let errorString = String(data: data, encoding: .utf8) {
+                    print("❌ [AIService] Chat test error response: \(errorString)")
+                }
                 throw AIError.apiError("HTTP \(httpResponse.statusCode)")
             }
         } catch let error as AIError {
@@ -204,23 +259,34 @@ actor AIService {
         ## 已完成的任务
         \(todoList)
 
-        ## 可用的 Redmine 项目
+        ## 可用的 Redmine 项目（必须从这些项目中选择）
         \(projectList)
 
-        ## 可用的活动类型
+        ## 可用的活动类型（必须从这些活动中选择）
         \(activityList)
 
-        ## 要求
-        1. 根据任务信息匹配最相关的项目，按以下优先级匹配：
-           a) 首先提取「票据Key」的前缀（如 VISSEL-776 → VISSEL）
-           b) 找到项目名称包含该前缀的候选项目
-           c) 如果有多个候选，根据「里程碑」名称中的关键词进一步筛选：
+        ## 匹配规则
+        1. **项目匹配优先级**（按以下顺序匹配）：
+           a) 如果任务有「票据Key」（如 VISSEL-776），提取前缀（VISSEL）
+           b) 在**上面的项目列表**中查找名称包含该前缀的项目
+           c) 如果有多个候选，根据「里程碑」关键词筛选：
               - 里程碑包含「保守」→ 优先选择项目名称包含「保守」的项目
               - 里程碑包含「開幕」「新規」→ 优先选择项目名称包含「開幕」「案件」的项目
-              - 里程碑包含年份如「26年」只是时间标记，不作为主要匹配依据
-           d) 示例：票据Key=VISSEL-776, 里程碑=26年1月保守 → 应匹配「楽天 VisselKobe 保守」而非「26年開幕案件」
-        2. 根据任务标题和描述推断活动类型（开发/设计/测试/会议等），从可用的活动类型中选择
-        3. 生成简洁的工作描述（20字以内，例如："完成登录功能开发"），可参考任务描述中的关键信息
+              - 里程碑包含年份（如「26年」）仅作时间标记，不作为主要匹配依据
+           d) 示例：票据Key=VISSEL-776, 里程碑=26年1月保守 → 匹配「楽天 VisselKobe 保守」
+           
+        2. **如果没有找到合适的项目匹配**：
+           - 任务是学习、培训、非工作相关 → 使用项目ID:75「非生産」
+           - 任务无明确项目信息或无法匹配 → 使用项目ID:75「非生産」
+           
+        3. **活动类型匹配**：
+           - 根据任务标题和描述推断活动类型（开发/设计/测试/会议/学习等）
+           - 学习相关任务 → 使用活动ID:50「内部-学习」
+           - 必须从**上面的活动类型列表**中选择有效的ID
+           
+        4. **生成工作描述**：
+           - 简洁描述（50字以内，例如："完成登录功能开发"）
+           - 可参考任务描述中的关键信息
 
         ## 返回 JSON 格式（只返回 JSON，不要其他文字）
         {
@@ -236,11 +302,11 @@ actor AIService {
           ]
         }
 
-        注意：
-        - projectId 和 projectName 必须从上面的项目列表中选择，不能为 null
-        - activityId 和 activityName 必须从上面的活动类型列表中选择
-        - 不需要返回 hours 字段，实际工时由用户在完成任务时输入
-        - 跟踪器(tracker)信息会从匹配的 issue 中自动获取，不需要 AI 匹配
+        ## ⚠️ 严格要求
+        - **projectId 必须是上面项目列表中的有效ID**，不能使用活动ID，不能编造ID
+        - **activityId 必须是上面活动类型列表中的有效ID**，不能使用项目ID，不能编造ID
+        - 项目ID和活动ID是两个不同的列表，不要混淆
+        - 如果无法找到合适的项目匹配，默认使用项目ID:75「非生産」+ 活动ID:50「内部-学习」
         """
     }
 

@@ -20,9 +20,11 @@ A lightweight macOS productivity app that intelligently transforms Backlog issue
 - No backend servers, no user accounts required
 
 ### 🤖 AI Integration
-- Uses DeepSeek AI (or OpenAI-compatible APIs) to generate actionable subtasks
-- Smart task breakdown from Backlog issue descriptions
-- Intelligent prioritization based on context
+- **Multi-Model Support**: Works with all OpenAI-compatible APIs
+- **Preset Models**: DeepSeek (deepseek-chat, deepseek-reasoner), Kimi (moonshot-v1-8k/32k/128k)
+- **Custom Models**: Manually input any model name (gpt-4o, claude-3-5-sonnet, etc.)
+- **Smart Matching**: Automatically match tasks to Redmine projects and activities
+- **Default Model**: deepseek-chat (recommended for best performance and cost)
 
 ### 📅 Calendar Support
 - Read events from multiple calendars
@@ -69,11 +71,18 @@ cd Glance
    - **API Key**: Generate from Backlog → Personal Settings → API
 
 ### 2. Configure AI Service
-1. In Settings, navigate to the AI section
+1. In Settings, navigate to the AI Model section
 2. Enter your API details:
-   - **API Key**: Your DeepSeek or OpenAI API key
+   - **API Key**: Your AI service API key
    - **Base URL**: API endpoint (default: `https://api.deepseek.com`)
-   - **Model**: Select model (e.g., `deepseek-chat`, `deepseek-reasoner`)
+     - DeepSeek: `https://api.deepseek.com`
+     - Kimi: `https://api.moonshot.cn/v1`
+     - OpenAI: `https://api.openai.com/v1`
+   - **Model**: Choose from preset models or enter custom model name
+     - Preset: deepseek-chat, deepseek-reasoner, moonshot-v1-8k/32k/128k
+     - Custom: gpt-4o, claude-3-5-sonnet, or any OpenAI-compatible model
+
+Supports all OpenAI SDK compatible APIs. See [AI_MODELS.md](AI_MODELS.md) for details.
 
 ### 3. Enable Calendar (Optional)
 1. In Settings, enable "Calendar Integration"
@@ -158,11 +167,13 @@ Calendar    ─┤                    ├─> AppViewModel ─> Views
 - Supports custom Backlog space URLs
 - Automatic retry and error handling
 
-### AI Service (DeepSeek/OpenAI)
-- Compatible with OpenAI API format
-- Customizable model selection
-- Context-aware task generation
-- Intelligent priority sorting
+### AI Service (Multi-Model Support)
+- **OpenAI-Compatible**: Works with any OpenAI SDK compatible API
+- **Preset Models**: 5 commonly used models (DeepSeek, Kimi)
+- **Custom Models**: Manually input any model name for flexibility
+- **Default Model**: deepseek-chat (best performance/cost ratio)
+- **Easy Switching**: Change models and endpoints without code modifications
+- **Smart Matching**: Automatically match tasks to projects and activities
 
 ### Calendar (EventKit)
 - Full calendar access on macOS 14+
@@ -243,7 +254,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Acknowledgments
 
 - [Backlog](https://backlog.com/) for their excellent project management platform
-- [DeepSeek](https://www.deepseek.com/) for AI capabilities
+- [DeepSeek](https://www.deepseek.com/) for powerful and cost-effective AI models
+- [Moonshot AI](https://www.moonshot.cn/) for Kimi's excellent Chinese language support
+- [OpenAI](https://openai.com/) for GPT models
+- [Anthropic](https://www.anthropic.com/) for Claude models
 - Apple's SwiftUI and EventKit frameworks
 
 ## Contact
