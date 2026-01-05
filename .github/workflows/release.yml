@@ -34,6 +34,11 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build
 
+      - name: Ad-hoc sign the app
+        run: |
+          APP_PATH=$(find build -name "Glance.app" -type d | head -1)
+          codesign --force --deep --sign - "$APP_PATH"
+
       - name: Create DMG
         run: |
           # Find the built app
