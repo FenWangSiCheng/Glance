@@ -308,8 +308,9 @@ class AppViewModel: ObservableObject {
         }
         
         // Convert to TodoItems
+        let baseURL = backlogURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         return sortedIssues.map { issue in
-            let issueURL = "\(backlogURL)/view/\(issue.issueKey)"
+            let issueURL = "\(baseURL)/view/\(issue.issueKey)"
             return TodoItem.backlog(
                 title: issue.summary,
                 issueKey: issue.issueKey,
