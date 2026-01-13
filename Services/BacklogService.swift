@@ -69,9 +69,6 @@ actor BacklogService {
         components.queryItems = [
             URLQueryItem(name: "apiKey", value: apiKey),
             URLQueryItem(name: "assigneeId[]", value: String(myself.id)),
-            URLQueryItem(name: "statusId[]", value: "1"),
-            URLQueryItem(name: "statusId[]", value: "2"),
-            URLQueryItem(name: "statusId[]", value: "3"),
             URLQueryItem(name: "count", value: "100")
         ]
 
@@ -102,9 +99,16 @@ actor BacklogService {
             }
 
             let decoder = JSONDecoder()
-            let issues = try decoder.decode([BacklogIssue].self, from: data)
-            print("✅ [BacklogService] Successfully fetched \(issues.count) issues")
-            return issues
+            let allIssues = try decoder.decode([BacklogIssue].self, from: data)
+
+            // Filter out closed issues (status id 4 = closed)
+            let openIssues = allIssues.filter { issue in
+                guard let status = issue.status else { return true }
+                return status.id != 4
+            }
+
+            print("✅ [BacklogService] Successfully fetched \(allIssues.count) issues, \(openIssues.count) open issues (filtered out \(allIssues.count - openIssues.count) closed)")
+            return openIssues
         } catch let error as BacklogError {
             throw error
         } catch let error as DecodingError {

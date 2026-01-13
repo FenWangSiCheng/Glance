@@ -709,6 +709,32 @@ class AppViewModel: ObservableObject {
         pendingTimeEntries.removeAll()
     }
 
+    func syncAllEntriesToToday() {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let todayString = formatter.string(from: Date())
+
+        pendingTimeEntries = pendingTimeEntries.map { entry in
+            let updatedTimeEntry = RedmineTimeEntry(
+                projectId: entry.timeEntry.projectId,
+                issueId: entry.timeEntry.issueId,
+                activityId: entry.timeEntry.activityId,
+                spentOn: todayString,
+                hours: entry.timeEntry.hours,
+                comments: entry.timeEntry.comments
+            )
+
+            return PendingTimeEntry(
+                id: entry.id,
+                timeEntry: updatedTimeEntry,
+                projectName: entry.projectName,
+                issueSubject: entry.issueSubject,
+                issueId: entry.issueId,
+                activityName: entry.activityName
+            )
+        }
+    }
+
     func submitAllPendingTimeEntries() async -> (success: Int, failed: Int) {
         guard isRedmineConfigured else {
             return (0, pendingTimeEntries.count)

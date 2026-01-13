@@ -305,6 +305,20 @@ struct RedmineTimeEntryView: View {
                 Spacer()
                 if !viewModel.pendingTimeEntries.isEmpty {
                     Button {
+                        viewModel.syncAllEntriesToToday()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "calendar")
+                                .accessibilityHidden(true)
+                            Text("同步到今天")
+                        }
+                        .foregroundStyle(Color(.systemOrange))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("同步到今天")
+                    .accessibilityHint("将所有待提交工时记录的日期更新为今天")
+
+                    Button {
                         showingClearConfirmation = true
                     } label: {
                         HStack(spacing: 4) {

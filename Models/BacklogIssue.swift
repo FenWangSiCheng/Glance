@@ -6,11 +6,17 @@ struct BacklogIssue: Identifiable, Codable, Hashable {
     let summary: String
     let description: String?
     let priority: Priority?
+    let status: Status?
     let startDate: String?
     let dueDate: String?
     let milestone: [Milestone]
 
     struct Priority: Codable, Hashable {
+        let id: Int
+        let name: String
+    }
+
+    struct Status: Codable, Hashable {
         let id: Int
         let name: String
     }
