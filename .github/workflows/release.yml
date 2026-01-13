@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: macos-26
 
     steps:
       - name: Checkout code
@@ -28,7 +28,7 @@ jobs:
             -scheme Glance \
             -configuration Release \
             -derivedDataPath build \
-            -arch arm64 -arch x86_64 \
+            -arch arm64 \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
