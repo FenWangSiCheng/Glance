@@ -297,22 +297,42 @@ struct RedmineTimeEntryView: View {
     // MARK: - Pending List Section
 
     private var pendingListSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text("待提交列表 (\(viewModel.pendingTimeEntries.count)条)")
-                    .font(.headline)
-                    .foregroundStyle(Color(.labelColor))
+                HStack(spacing: 8) {
+                    Image(systemName: "list.bullet.clipboard")
+                        .font(.headline)
+                        .foregroundStyle(Color.blue)
+
+                    Text("待提交列表")
+                        .font(.headline)
+                        .foregroundStyle(Color(.labelColor))
+
+                    Text("(\(viewModel.pendingTimeEntries.count))")
+                        .font(.subheadline)
+                        .foregroundStyle(Color(.secondaryLabelColor))
+                }
+
                 Spacer()
+
                 if !viewModel.pendingTimeEntries.isEmpty {
                     Button {
                         viewModel.syncAllEntriesToToday()
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "calendar")
+                                .font(.caption)
                                 .accessibilityHidden(true)
                             Text("同步到今天")
+                                .font(.caption)
                         }
-                        .foregroundStyle(Color(.systemOrange))
+                        .foregroundStyle(Color.orange)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule()
+                                .fill(Color.orange.opacity(0.1))
+                        )
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("同步到今天")
@@ -323,10 +343,18 @@ struct RedmineTimeEntryView: View {
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "trash")
+                                .font(.caption)
                                 .accessibilityHidden(true)
                             Text("清空")
+                                .font(.caption)
                         }
-                        .foregroundStyle(Color(.systemRed))
+                        .foregroundStyle(Color.red)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule()
+                                .fill(Color.red.opacity(0.1))
+                        )
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("清空列表")
@@ -335,11 +363,39 @@ struct RedmineTimeEntryView: View {
             }
 
             if viewModel.pendingTimeEntries.isEmpty {
-                Text("暂无待提交的工时记录")
-                    .font(.subheadline)
-                    .foregroundStyle(Color(.tertiaryLabelColor))
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 20)
+                VStack(spacing: 16) {
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color.blue.opacity(0.15),
+                                        Color.blue.opacity(0.05)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 80, height: 80)
+
+                        Image(systemName: "tray")
+                            .font(.system(size: 32, weight: .light))
+                            .foregroundStyle(Color.blue.opacity(0.6))
+                    }
+
+                    VStack(spacing: 6) {
+                        Text("暂无待提交的工时记录")
+                            .font(.body)
+                            .fontWeight(.medium)
+                            .foregroundStyle(Color(.labelColor))
+
+                        Text("填写上方表单添加工时记录")
+                            .font(.subheadline)
+                            .foregroundStyle(Color(.secondaryLabelColor))
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 40)
             } else {
                 VStack(spacing: 8) {
                     ForEach(viewModel.pendingTimeEntries) { entry in
@@ -361,11 +417,22 @@ struct RedmineTimeEntryView: View {
                 displayEntryView(entry)
             }
         }
-        .background(Color(.textBackgroundColor))
-        .cornerRadius(8)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color(.controlBackgroundColor))
+        )
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(editingEntryId == entry.id ? Color.accentColor : Color.clear, lineWidth: 2)
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(
+                    editingEntryId == entry.id ? Color.blue : Color(.separatorColor).opacity(0.5),
+                    lineWidth: editingEntryId == entry.id ? 2 : 0.5
+                )
+        )
+        .shadow(
+            color: Color.black.opacity(0.04),
+            radius: 3,
+            x: 0,
+            y: 1
         )
     }
     
@@ -373,60 +440,81 @@ struct RedmineTimeEntryView: View {
         VStack(spacing: 0) {
             // Header with actions
             HStack {
-                Text("工时记录")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color(.secondaryLabelColor))
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(Color.blue.opacity(0.2))
+                        .frame(width: 24, height: 24)
+                        .overlay(
+                            Image(systemName: "clock.fill")
+                                .font(.system(size: 10))
+                                .foregroundStyle(Color.blue)
+                        )
+
+                    Text("工时记录")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color(.labelColor))
+                }
+
                 Spacer()
-                HStack(spacing: 12) {
+
+                HStack(spacing: 8) {
                     Button {
                         startEditing(entry)
                     } label: {
                         Image(systemName: "pencil")
-                            .foregroundStyle(Color.accentColor)
-                            .frame(minWidth: 32, minHeight: 32)
+                            .font(.subheadline)
+                            .foregroundStyle(Color.blue)
+                            .frame(width: 32, height: 32)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("编辑")
-                    
+
                     Button {
                         viewModel.removePendingTimeEntry(id: entry.id)
                     } label: {
                         Image(systemName: "trash")
-                            .foregroundStyle(Color(.systemRed))
-                            .frame(minWidth: 32, minHeight: 32)
+                            .font(.subheadline)
+                            .foregroundStyle(Color.red)
+                            .frame(width: 32, height: 32)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("删除")
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.top, 12)
-            .padding(.bottom, 8)
-            
-            Divider()
-            
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color(.textBackgroundColor).opacity(0.5))
+
             // Content
-            VStack(spacing: 10) {
-                infoRow(label: "日期", value: entry.timeEntry.spentOn)
-                infoRow(label: "项目", value: entry.projectName)
-                infoRow(label: "任务", value: "#\(entry.issueId) \(entry.issueSubject)")
-                infoRow(label: "活动类型", value: entry.activityName)
-                infoRow(label: "工时(h)", value: entry.timeEntry.hours)
-                infoRow(label: "描述", value: entry.timeEntry.comments)
+            VStack(spacing: 12) {
+                infoRow(label: "日期", value: entry.timeEntry.spentOn, icon: "calendar")
+                infoRow(label: "项目", value: entry.projectName, icon: "folder.fill")
+                infoRow(label: "任务", value: "#\(entry.issueId) \(entry.issueSubject)", icon: "number")
+                infoRow(label: "活动", value: entry.activityName, icon: "tag.fill")
+                infoRow(label: "工时", value: entry.timeEntry.hours + "h", icon: "clock")
+                infoRow(label: "描述", value: entry.timeEntry.comments, icon: "text.alignleft")
             }
-            .padding(12)
+            .padding(16)
         }
     }
     
-    private func infoRow(label: String, value: String) -> some View {
+    private func infoRow(label: String, value: String, icon: String) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            Text(label)
-                .font(.subheadline)
-                .foregroundStyle(Color(.secondaryLabelColor))
-                .frame(width: 70, alignment: .leading)
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.caption)
+                    .foregroundStyle(Color(.secondaryLabelColor))
+                    .frame(width: 16)
+
+                Text(label)
+                    .font(.subheadline)
+                    .foregroundStyle(Color(.secondaryLabelColor))
+            }
+            .frame(width: 80, alignment: .leading)
+
             Text(value)
                 .font(.subheadline)
                 .foregroundStyle(Color(.labelColor))
@@ -438,11 +526,24 @@ struct RedmineTimeEntryView: View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                Text("编辑工时记录")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.accentColor)
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(Color.blue.opacity(0.2))
+                        .frame(width: 24, height: 24)
+                        .overlay(
+                            Image(systemName: "pencil")
+                                .font(.system(size: 10))
+                                .foregroundStyle(Color.blue)
+                        )
+
+                    Text("编辑工时记录")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.blue)
+                }
+
                 Spacer()
+
                 HStack(spacing: 12) {
                     Button {
                         cancelEditing()
@@ -452,24 +553,22 @@ struct RedmineTimeEntryView: View {
                             .foregroundStyle(Color(.secondaryLabelColor))
                     }
                     .buttonStyle(.plain)
-                    
+
                     Button {
                         saveEditing(entry)
                     } label: {
                         Text("保存")
                             .font(.subheadline)
                             .fontWeight(.semibold)
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(Color.blue)
                     }
                     .buttonStyle(.plain)
                     .disabled(!canSaveEdit)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.top, 12)
-            .padding(.bottom, 8)
-            
-            Divider()
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color.blue.opacity(0.05))
             
             // Editing form
             VStack(spacing: 12) {

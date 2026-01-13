@@ -39,21 +39,47 @@ struct MainView: View {
 // MARK: - Sidebar
 struct SidebarView: View {
     @ObservedObject var viewModel: AppViewModel
+    @State private var isHoveringSettings = false
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            Text("Glance")
-                .font(.title2)
-                .fontWeight(.semibold)
+            // Header with improved visual hierarchy
+            VStack(spacing: 8) {
+                HStack {
+                    Image(systemName: "sparkle")
+                        .font(.title2)
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [Color.blue, Color.blue.opacity(0.7)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .accessibilityHidden(true)
+
+                    Text("Glance")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color(.labelColor))
+
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
                 .padding(.top, 32)
-                .padding(.bottom, 24)
+
+                Text("智能待办管理")
+                    .font(.caption)
+                    .foregroundStyle(Color(.secondaryLabelColor))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+            }
+            .padding(.bottom, 16)
 
             Divider()
                 .padding(.horizontal, 16)
 
-            // Navigation List
-            VStack(spacing: 4) {
+            // Navigation List with card-based design
+            VStack(spacing: 8) {
                 NavigationRow(
                     icon: "checklist",
                     title: "待办清单",
@@ -68,7 +94,7 @@ struct SidebarView: View {
                         icon: "clock.fill",
                         title: "Redmine 工时",
                         badge: viewModel.pendingTimeEntries.isEmpty ? nil : "\(viewModel.pendingTimeEntries.count)",
-                        badgeColor: Color(.systemOrange),
+                        badgeColor: Color.orange,
                         isSelected: viewModel.selectedDestination == .timeEntry
                     ) {
                         viewModel.selectedDestination = .timeEntry
@@ -80,17 +106,24 @@ struct SidebarView: View {
 
             Spacer()
 
-            // Footer
+            // Footer with improved design
             sidebarFooter
         }
-        .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 280)
+        .navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 280)
         .toolbar {
             ToolbarItem(placement: .automatic) {
                 Button {
                     viewModel.showingSettings = true
                 } label: {
-                    Image(systemName: "gearshape")
+                    Image(systemName: isHoveringSettings ? "gearshape.fill" : "gearshape")
+                        .foregroundStyle(Color(.secondaryLabelColor))
                         .accessibilityHidden(true)
+                }
+                .buttonStyle(.plain)
+                .onHover { hovering in
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isHoveringSettings = hovering
+                    }
                 }
                 .accessibilityLabel("打开设置")
                 .accessibilityHint("配置 Backlog 和 AI API")
@@ -119,10 +152,12 @@ struct SidebarView: View {
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(Color(.systemOrange))
+                    .font(.caption)
+                    .foregroundStyle(Color.orange)
                     .accessibilityHidden(true)
                 Text("需要配置 API")
                     .font(.caption)
+                    .foregroundStyle(Color(.labelColor))
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.caption2)
@@ -130,7 +165,10 @@ struct SidebarView: View {
                     .accessibilityHidden(true)
             }
             .padding(10)
-            .background(Color(.systemOrange).opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.orange.opacity(0.15))
+            )
         }
         .buttonStyle(.plain)
         .accessibilityLabel("API 配置警告")
@@ -143,13 +181,18 @@ struct SidebarView: View {
             // Use checkmark icon instead of plain circle for colorblind accessibility
             Image(systemName: "checkmark.circle.fill")
                 .font(.caption)
-                .foregroundStyle(Color(.systemGreen))
+                .foregroundStyle(Color.green)
                 .accessibilityHidden(true)
-            Text("已连接")
+            Text("系统已就绪")
                 .font(.caption)
                 .foregroundStyle(Color(.secondaryLabelColor))
             Spacer()
         }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.green.opacity(0.1))
+        )
         .accessibilityElement(children: .combine)
         .accessibilityLabel("连接状态：已连接")
     }
@@ -390,31 +433,37 @@ struct TodosDetailView: View {
 
     private var generatingOverlay: some View {
         ZStack {
-            Color(.windowBackgroundColor).opacity(reduceTransparency ? 1.0 : 0.7)
+            Color.black.opacity(reduceTransparency ? 0.5 : 0.3)
+                .ignoresSafeArea()
 
-            VStack(spacing: 16) {
+            VStack(spacing: 20) {
                 ProgressView()
-                    .scaleEffect(1.5)
+                    .controlSize(.large)
+                    .tint(.blue)
                     .accessibilityHidden(true)
-                Text("正在获取票据并生成待办...")
-                    .font(.headline)
-                    .foregroundStyle(Color(.labelColor))
-                Text("请稍候")
-                    .font(.subheadline)
-                    .foregroundStyle(Color(.secondaryLabelColor))
+
+                VStack(spacing: 8) {
+                    Text("正在获取票据并生成待办...")
+                        .font(.headline)
+                        .foregroundStyle(Color(.labelColor))
+
+                    Text("请稍候")
+                        .font(.subheadline)
+                        .foregroundStyle(Color(.secondaryLabelColor))
+                }
             }
-            .padding(32)
+            .padding(40)
             .background(
-                reduceTransparency
-                    ? AnyShapeStyle(Color(.windowBackgroundColor))
-                    : AnyShapeStyle(.regularMaterial),
-                in: RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(reduceTransparency ? Color(.windowBackgroundColor) : Color.clear)
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 20))
             )
             .shadow(
-                color: reduceTransparency ? .clear : Color(.shadowColor).opacity(0.2),
-                radius: reduceTransparency ? 0 : 16,
+                color: Color.black.opacity(0.15),
+                radius: 20,
                 x: 0,
-                y: reduceTransparency ? 0 : 8
+                y: 10
             )
         }
         .accessibilityElement(children: .combine)
@@ -424,31 +473,38 @@ struct TodosDetailView: View {
 
     private var timeEntryGeneratingOverlay: some View {
         ZStack {
-            Color(.windowBackgroundColor).opacity(reduceTransparency ? 1.0 : 0.7)
+            Color.black.opacity(reduceTransparency ? 0.5 : 0.3)
+                .ignoresSafeArea()
 
-            VStack(spacing: 16) {
+            VStack(spacing: 20) {
                 ProgressView()
-                    .scaleEffect(1.5)
+                    .controlSize(.large)
+                    .tint(.blue)
                     .accessibilityHidden(true)
-                Text("正在生成工时记录...")
-                    .font(.headline)
-                    .foregroundStyle(Color(.labelColor))
-                Text(viewModel.generationProgress.isEmpty ? "请稍候" : viewModel.generationProgress)
-                    .font(.subheadline)
-                    .foregroundStyle(Color(.secondaryLabelColor))
+
+                VStack(spacing: 8) {
+                    Text("正在生成工时记录...")
+                        .font(.headline)
+                        .foregroundStyle(Color(.labelColor))
+
+                    Text(viewModel.generationProgress.isEmpty ? "请稍候" : viewModel.generationProgress)
+                        .font(.subheadline)
+                        .foregroundStyle(Color(.secondaryLabelColor))
+                        .multilineTextAlignment(.center)
+                }
             }
-            .padding(32)
+            .padding(40)
             .background(
-                reduceTransparency
-                    ? AnyShapeStyle(Color(.windowBackgroundColor))
-                    : AnyShapeStyle(.regularMaterial),
-                in: RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(reduceTransparency ? Color(.windowBackgroundColor) : Color.clear)
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 20))
             )
             .shadow(
-                color: reduceTransparency ? .clear : Color(.shadowColor).opacity(0.2),
-                radius: reduceTransparency ? 0 : 16,
+                color: Color.black.opacity(0.15),
+                radius: 20,
                 x: 0,
-                y: reduceTransparency ? 0 : 8
+                y: 10
             )
         }
         .accessibilityElement(children: .combine)
@@ -476,20 +532,31 @@ struct TodoItemRow: View {
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            // Checkbox
+        HStack(alignment: .top, spacing: 12) {
+            // Checkbox with better design
             Button {
                 withAnimation(standardAnimation) {
                     onToggle()
                 }
             } label: {
-                Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
-                    .font(.title2)
-                    .foregroundStyle(item.isCompleted ? Color(.systemGreen) : Color(.secondaryLabelColor))
-                    .contentShape(Rectangle())
+                ZStack {
+                    Circle()
+                        .strokeBorder(
+                            item.isCompleted ? Color.green : Color(.separatorColor),
+                            lineWidth: 2
+                        )
+                        .frame(width: 22, height: 22)
+
+                    if item.isCompleted {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(Color.green)
+                    }
+                }
+                .frame(width: 32, height: 32)
+                .contentShape(Circle())
             }
             .buttonStyle(.plain)
-            .frame(width: 24)
             .accessibilityHidden(true)
 
             if isEditing {
@@ -498,7 +565,25 @@ struct TodoItemRow: View {
                 normalContent
             }
         }
-        .padding(.vertical, 8)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color(.controlBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(
+                    isHovering ? Color.blue.opacity(0.3) : Color(.separatorColor).opacity(0.5),
+                    lineWidth: isHovering ? 1 : 0.5
+                )
+        )
+        .shadow(
+            color: Color.black.opacity(isHovering ? 0.08 : 0.04),
+            radius: isHovering ? 6 : 3,
+            x: 0,
+            y: isHovering ? 3 : 1
+        )
+        .animation(.easeInOut(duration: 0.2), value: isHovering)
         .onHover { hovering in
             isHovering = hovering
         }
@@ -606,15 +691,24 @@ struct TodoItemRow: View {
                 // Issue key/Calendar badge
                 issueKeyBadge
 
-                // Priority badge (Backlog only)
+                // Priority badge (Backlog only) with dot indicator
                 if let priority = item.priority {
-                    Text("优先级: \(priority)")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundStyle(priorityTextColor(priority))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(priorityBackgroundColor(priority), in: RoundedRectangle(cornerRadius: 4))
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(priorityColor(priority))
+                            .frame(width: 6, height: 6)
+
+                        Text(priorityLabel(priority))
+                            .font(.caption)
+                            .fontWeight(.medium)
+                    }
+                    .foregroundStyle(priorityColor(priority))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(priorityColor(priority).opacity(0.12))
+                    )
                 }
 
                 // Milestone badges (Backlog only)
@@ -715,31 +809,31 @@ struct TodoItemRow: View {
         }
     }
 
-    // iOS-style priority text colors
-    private func priorityTextColor(_ priority: String) -> Color {
+    // Priority color for unified styling
+    private func priorityColor(_ priority: String) -> Color {
         switch priority {
         case "高", "High":
-            return Color(.systemRed)
+            return Color.red
         case "中", "Normal", "Medium":
-            return Color(.secondaryLabelColor)
+            return Color.orange
         case "低", "Low":
-            return Color(.systemGreen)
+            return Color.green
         default:
             return Color(.secondaryLabelColor)
         }
     }
 
-    // iOS-style priority background colors
-    private func priorityBackgroundColor(_ priority: String) -> Color {
+    // Priority label text
+    private func priorityLabel(_ priority: String) -> String {
         switch priority {
         case "高", "High":
-            return Color(.systemRed).opacity(0.1)
+            return "高优先级"
         case "中", "Normal", "Medium":
-            return Color(.separatorColor).opacity(0.3)
+            return "中优先级"
         case "低", "Low":
-            return Color(.systemGreen).opacity(0.1)
+            return "低优先级"
         default:
-            return Color(.separatorColor).opacity(0.3)
+            return priority
         }
     }
 
@@ -795,23 +889,44 @@ struct EmptyStateView: View {
     let subtitle: String
 
     var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: icon)
-                .font(.system(size: 48))
-                .foregroundStyle(Color(.tertiaryLabelColor))
-                .accessibilityHidden(true)
+        VStack(spacing: 24) {
+            // Icon with gradient background circle
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.blue.opacity(0.15),
+                                Color.blue.opacity(0.05)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 100, height: 100)
 
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(Color(.secondaryLabelColor))
-                .accessibilityAddTraits(.isHeader)
+                Image(systemName: icon)
+                    .font(.system(size: 40, weight: .light))
+                    .foregroundStyle(Color.blue.opacity(0.6))
+            }
+            .accessibilityHidden(true)
 
-            Text(subtitle)
-                .font(.subheadline)
-                .foregroundStyle(Color(.tertiaryLabelColor))
-                .multilineTextAlignment(.center)
+            VStack(spacing: 8) {
+                Text(title)
+                    .font(.title3)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color(.labelColor))
+                    .accessibilityAddTraits(.isHeader)
+
+                Text(subtitle)
+                    .font(.body)
+                    .foregroundStyle(Color(.secondaryLabelColor))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(32)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(title)，\(subtitle)")
         .accessibilityAddTraits(.isHeader)
@@ -878,47 +993,64 @@ struct NavigationRow: View {
     let icon: String
     let title: String
     var badge: String? = nil
-    var badgeColor: Color = Color(.systemBlue)
+    var badgeColor: Color = Color.blue
     let isSelected: Bool
     let action: () -> Void
 
+    @State private var isHovering = false
+
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 10) {
-                Image(systemName: icon)
-                    .font(.body)
-                    .foregroundStyle(isSelected ? Color.accentColor : Color(.secondaryLabelColor))
-                    .frame(width: 20)
-                    .accessibilityHidden(true)
+            HStack(spacing: 12) {
+                // Icon with background
+                ZStack {
+                    Circle()
+                        .fill(isSelected ? Color.blue.opacity(0.2) : Color.clear)
+                        .frame(width: 32, height: 32)
+
+                    Image(systemName: icon)
+                        .font(.body)
+                        .foregroundStyle(isSelected ? Color.blue : Color(.secondaryLabelColor))
+                }
+                .accessibilityHidden(true)
 
                 Text(title)
                     .font(.body)
+                    .fontWeight(isSelected ? .medium : .regular)
                     .foregroundStyle(isSelected ? Color(.labelColor) : Color(.secondaryLabelColor))
 
                 Spacer()
 
+                // Badge
                 if let badge = badge {
                     Text(badge)
                         .font(.caption)
-                        .fontWeight(.medium)
+                        .fontWeight(.semibold)
                         .foregroundStyle(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
                         .background(badgeColor, in: Capsule())
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .frame(minHeight: 44)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(minHeight: 48)
             .background(
-                isSelected
-                    ? Color.accentColor.opacity(0.15)
-                    : Color.clear,
-                in: RoundedRectangle(cornerRadius: 6)
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(isSelected ? Color.blue.opacity(0.1) : (isHovering ? Color(.separatorColor).opacity(0.3) : Color.clear))
             )
-            .contentShape(RoundedRectangle(cornerRadius: 6))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(isSelected ? Color.blue.opacity(0.3) : Color.clear, lineWidth: 1.5)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 10))
         }
         .buttonStyle(.plain)
+        .animation(.easeInOut(duration: 0.2), value: isHovering)
+        .animation(.easeInOut(duration: 0.2), value: isSelected)
+        .onHover { hovering in
+            isHovering = hovering
+        }
         .accessibilityLabel(title)
         .accessibilityValue(badge.map { "\($0) 项" } ?? "")
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])

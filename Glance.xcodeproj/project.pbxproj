@@ -10,8 +10,6 @@
 		08E605415518AAAF4685D5B3 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EFCDC0DEC8B786537C21D1A /* KeychainHelper.swift */; };
 		0F5EBE441753950C06B80B17 /* RedmineService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95AC405DED9E21A3D914851C /* RedmineService.swift */; };
 		123456789ABCDEF012345678 /* CalendarEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6789012345678 /* CalendarEvent.swift */; };
-		EMAI1M0D3L5F1L3B01234567 /* EmailModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = EMAI1M0D3L5R3F012345678 /* EmailModels.swift */; };
-		EMAI1S3RV1C3B01234567890 /* EmailService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EMAI1S3RV1C3R3F012345678 /* EmailService.swift */; };
 		2101A9A8802E1FDAB1BF756A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41222B57F3A704E0DCF7D48D /* SettingsView.swift */; };
 		234567890ABCDEF123456789 /* CalendarService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F678901234567890 /* CalendarService.swift */; };
 		3A731BFF5275ED05441B333D /* AIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F35A336556BD8808963DC0C /* AIService.swift */; };
@@ -24,13 +22,13 @@
 		D44A9962844DA6C8F59F1109 /* BacklogService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C6B712A59D5D77B739679CA /* BacklogService.swift */; };
 		DD89BF13A6D99367C709565B /* RedmineTimeEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D99674CD29BEECB03CF9A2AC /* RedmineTimeEntryView.swift */; };
 		E73DCE3DEEB013EE3AD8ACB8 /* RedmineModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 170BCBAB8CD2D373107B4141 /* RedmineModels.swift */; };
+		EMAI1M0D3L5F1L3B01234567 /* EmailModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = EMAI1M0D3L5R3F012345678 /* EmailModels.swift */; };
+		EMAI1S3RV1C3B01234567890 /* EmailService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EMAI1S3RV1C3R3F012345678 /* EmailService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		170BCBAB8CD2D373107B4141 /* RedmineModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RedmineModels.swift; sourceTree = "<group>"; };
 		2700AB7A2D50F847C91EE970 /* TodoItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodoItem.swift; sourceTree = "<group>"; };
-		EMAI1M0D3L5R3F012345678 /* EmailModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailModels.swift; sourceTree = "<group>"; };
-		EMAI1S3RV1C3R3F012345678 /* EmailService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailService.swift; sourceTree = "<group>"; };
 		4039498C99012D43BC66D9DB /* BacklogIssue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklogIssue.swift; sourceTree = "<group>"; };
 		41222B57F3A704E0DCF7D48D /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		4745BDA533F6219F64C68AA7 /* GlanceApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlanceApp.swift; sourceTree = "<group>"; };
@@ -45,6 +43,8 @@
 		CE2B47E12323D3EF16EFCC5E /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
 		D99674CD29BEECB03CF9A2AC /* RedmineTimeEntryView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RedmineTimeEntryView.swift; sourceTree = "<group>"; };
 		E6681C13BACBBD0D74A80EB4 /* Glance.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Glance.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		EMAI1M0D3L5R3F012345678 /* EmailModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailModels.swift; sourceTree = "<group>"; };
+		EMAI1S3RV1C3R3F012345678 /* EmailService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */

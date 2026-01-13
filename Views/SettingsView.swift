@@ -96,17 +96,40 @@ struct SettingsView: View {
     }
 
     private var headerView: some View {
-        HStack {
-            Image(systemName: "gearshape.fill")
-                .font(.title2)
-                .foregroundStyle(Color(.secondaryLabelColor))
-                .accessibilityHidden(true)
-            Text("设置")
-                .font(.headline)
-                .foregroundStyle(Color(.labelColor))
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.blue, Color.blue.opacity(0.7)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 36, height: 36)
+
+                Image(systemName: "gearshape.fill")
+                    .font(.system(size: 18))
+                    .foregroundStyle(.white)
+            }
+            .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("设置")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundStyle(Color(.labelColor))
+
+                Text("配置应用连接和偏好")
+                    .font(.caption)
+                    .foregroundStyle(Color(.secondaryLabelColor))
+            }
+
             Spacer()
         }
-        .padding()
+        .padding(.horizontal, 20)
+        .padding(.vertical, 16)
+        .background(Color(.controlBackgroundColor))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("设置")
         .accessibilityAddTraits(.isHeader)
@@ -114,24 +137,32 @@ struct SettingsView: View {
 
     private var footerView: some View {
         HStack {
-            // Configuration status
+            // Configuration status with better design
             HStack(spacing: 8) {
                 if viewModel.isConfigured {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(Color(.systemGreen))
+                        .font(.subheadline)
+                        .foregroundStyle(Color.green)
                         .accessibilityHidden(true)
                     Text("配置完成")
-                        .font(.caption)
-                        .foregroundStyle(Color(.secondaryLabelColor))
+                        .font(.subheadline)
+                        .foregroundStyle(Color(.labelColor))
                 } else {
-                    Image(systemName: "exclamationmark.circle.fill")
-                        .foregroundStyle(Color(.systemOrange))
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.orange)
                         .accessibilityHidden(true)
                     Text("请完成配置")
-                        .font(.caption)
-                        .foregroundStyle(Color(.secondaryLabelColor))
+                        .font(.subheadline)
+                        .foregroundStyle(Color(.labelColor))
                 }
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(
+                Capsule()
+                    .fill(viewModel.isConfigured ? Color.green.opacity(0.1) : Color.orange.opacity(0.1))
+            )
             .accessibilityElement(children: .combine)
             .accessibilityLabel(viewModel.isConfigured ? "配置状态：已完成" : "配置状态：请完成配置")
 
@@ -142,10 +173,13 @@ struct SettingsView: View {
             }
             .keyboardShortcut(.return, modifiers: [])
             .buttonStyle(.borderedProminent)
+            .controlSize(.large)
             .accessibilityLabel("完成设置")
             .accessibilityHint("关闭设置窗口")
         }
-        .padding()
+        .padding(.horizontal, 20)
+        .padding(.vertical, 16)
+        .background(Color(.controlBackgroundColor))
     }
 }
 
@@ -184,9 +218,15 @@ struct BacklogSettingsTab: View {
                 }
             } header: {
                 HStack(spacing: 8) {
-                    Image(systemName: "tray.full.fill")
-                        .foregroundStyle(Color.accentColor)
-                        .accessibilityHidden(true)
+                    Circle()
+                        .fill(Color.blue.opacity(0.15))
+                        .frame(width: 28, height: 28)
+                        .overlay(
+                            Image(systemName: "tray.full.fill")
+                                .font(.system(size: 12))
+                                .foregroundStyle(Color.blue)
+                        )
+
                     Text("Backlog 连接配置")
                         .font(.headline)
                         .foregroundStyle(Color(.labelColor))
@@ -232,14 +272,21 @@ struct BacklogSettingsTab: View {
             .accessibilityHint(isTesting ? "正在测试中" : "验证 Backlog API 配置是否正确")
 
             if let result = testResult {
-                HStack(spacing: 4) {
+                HStack(spacing: 6) {
                     Image(systemName: result ? "checkmark.circle.fill" : "xmark.circle.fill")
-                        .foregroundStyle(result ? Color(.systemGreen) : Color(.systemRed))
+                        .font(.subheadline)
+                        .foregroundStyle(result ? Color.green : Color.red)
                         .accessibilityHidden(true)
                     Text(result ? "连接成功" : "连接失败")
-                        .font(.caption)
-                        .foregroundStyle(result ? Color(.systemGreen) : Color(.systemRed))
+                        .font(.subheadline)
+                        .foregroundStyle(result ? Color.green : Color.red)
                 }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule()
+                        .fill(result ? Color.green.opacity(0.12) : Color.red.opacity(0.12))
+                )
                 .transition(.opacity.combined(with: .scale))
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(result ? "连接测试成功" : "连接测试失败")
@@ -357,9 +404,15 @@ struct AISettingsTab: View {
                 }
             } header: {
                 HStack(spacing: 8) {
-                    Image(systemName: "cpu.fill")
-                        .foregroundStyle(Color.accentColor)
-                        .accessibilityHidden(true)
+                    Circle()
+                        .fill(Color.blue.opacity(0.15))
+                        .frame(width: 28, height: 28)
+                        .overlay(
+                            Image(systemName: "cpu.fill")
+                                .font(.system(size: 12))
+                                .foregroundStyle(Color.blue)
+                        )
+
                     Text("AI 模型配置")
                         .font(.headline)
                         .foregroundStyle(Color(.labelColor))
@@ -401,14 +454,21 @@ struct AISettingsTab: View {
             .accessibilityHint(isTesting ? "正在测试中" : "验证 AI API 配置是否正确")
 
             if let result = testResult {
-                HStack(spacing: 4) {
+                HStack(spacing: 6) {
                     Image(systemName: result ? "checkmark.circle.fill" : "xmark.circle.fill")
-                        .foregroundStyle(result ? Color(.systemGreen) : Color(.systemRed))
+                        .font(.subheadline)
+                        .foregroundStyle(result ? Color.green : Color.red)
                         .accessibilityHidden(true)
                     Text(result ? "连接成功" : "连接失败")
-                        .font(.caption)
-                        .foregroundStyle(result ? Color(.systemGreen) : Color(.systemRed))
+                        .font(.subheadline)
+                        .foregroundStyle(result ? Color.green : Color.red)
                 }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule()
+                        .fill(result ? Color.green.opacity(0.12) : Color.red.opacity(0.12))
+                )
                 .transition(.opacity.combined(with: .scale))
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(result ? "连接测试成功" : "连接测试失败")
@@ -550,9 +610,15 @@ struct CalendarSettingsTab: View {
                 }
             } header: {
                 HStack(spacing: 8) {
-                    Image(systemName: "calendar")
-                        .foregroundStyle(Color(.systemOrange))
-                        .accessibilityHidden(true)
+                    Circle()
+                        .fill(Color.orange.opacity(0.15))
+                        .frame(width: 28, height: 28)
+                        .overlay(
+                            Image(systemName: "calendar")
+                                .font(.system(size: 12))
+                                .foregroundStyle(Color.orange)
+                        )
+
                     Text("日历同步配置")
                         .font(.headline)
                         .foregroundStyle(Color(.labelColor))
@@ -633,9 +699,15 @@ struct RedmineSettingsTab: View {
                 }
             } header: {
                 HStack(spacing: 8) {
-                    Image(systemName: "clock.fill")
-                        .foregroundStyle(Color(.systemTeal))
-                        .accessibilityHidden(true)
+                    Circle()
+                        .fill(Color.cyan.opacity(0.15))
+                        .frame(width: 28, height: 28)
+                        .overlay(
+                            Image(systemName: "clock.fill")
+                                .font(.system(size: 12))
+                                .foregroundStyle(Color.cyan)
+                        )
+
                     Text("Redmine 工时配置")
                         .font(.headline)
                         .foregroundStyle(Color(.labelColor))
@@ -681,14 +753,21 @@ struct RedmineSettingsTab: View {
             .accessibilityHint(isTesting ? "正在测试中" : "验证 Redmine API 配置是否正确")
 
             if let result = testResult {
-                HStack(spacing: 4) {
+                HStack(spacing: 6) {
                     Image(systemName: result ? "checkmark.circle.fill" : "xmark.circle.fill")
-                        .foregroundStyle(result ? Color(.systemGreen) : Color(.systemRed))
+                        .font(.subheadline)
+                        .foregroundStyle(result ? Color.green : Color.red)
                         .accessibilityHidden(true)
                     Text(result ? "连接成功" : "连接失败")
-                        .font(.caption)
-                        .foregroundStyle(result ? Color(.systemGreen) : Color(.systemRed))
+                        .font(.subheadline)
+                        .foregroundStyle(result ? Color.green : Color.red)
                 }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule()
+                        .fill(result ? Color.green.opacity(0.12) : Color.red.opacity(0.12))
+                )
                 .transition(.opacity.combined(with: .scale))
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(result ? "连接测试成功" : "连接测试失败")
@@ -815,9 +894,15 @@ struct EmailSettingsTab: View {
                 }
             } header: {
                 HStack(spacing: 8) {
-                    Image(systemName: "envelope.fill")
-                        .foregroundStyle(Color(.systemBlue))
-                        .accessibilityHidden(true)
+                    Circle()
+                        .fill(Color.blue.opacity(0.15))
+                        .frame(width: 28, height: 28)
+                        .overlay(
+                            Image(systemName: "envelope.fill")
+                                .font(.system(size: 12))
+                                .foregroundStyle(Color.blue)
+                        )
+
                     Text("邮件日报配置")
                         .font(.headline)
                         .foregroundStyle(Color(.labelColor))
@@ -869,14 +954,21 @@ struct EmailSettingsTab: View {
             .accessibilityHint(isTesting ? "正在测试中" : "验证 SMTP 配置是否正确")
 
             if let result = testResult {
-                HStack(spacing: 4) {
+                HStack(spacing: 6) {
                     Image(systemName: result ? "checkmark.circle.fill" : "xmark.circle.fill")
-                        .foregroundStyle(result ? Color(.systemGreen) : Color(.systemRed))
+                        .font(.subheadline)
+                        .foregroundStyle(result ? Color.green : Color.red)
                         .accessibilityHidden(true)
                     Text(result ? "连接成功" : "连接失败")
-                        .font(.caption)
-                        .foregroundStyle(result ? Color(.systemGreen) : Color(.systemRed))
+                        .font(.subheadline)
+                        .foregroundStyle(result ? Color.green : Color.red)
                 }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule()
+                        .fill(result ? Color.green.opacity(0.12) : Color.red.opacity(0.12))
+                )
                 .transition(.opacity.combined(with: .scale))
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(result ? "连接测试成功" : "连接测试失败")
