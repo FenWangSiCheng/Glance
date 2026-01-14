@@ -1,5 +1,6 @@
 {
   "enabledPlugins": {
-    "sourcekit-lsp@claude-code-lsps": true
+    "sourcekit-lsp@claude-code-lsps": true,
+    "axiom@axiom-marketplace": true
   }
 }

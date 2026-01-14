@@ -12,7 +12,7 @@ This is a native macOS SwiftUI application. Open `Glance.xcodeproj` in Xcode to 
 
 ## Architecture
 
-Glance is a Mac productivity app that fetches Backlog issues and calendar events, uses AI (DeepSeek) to generate prioritized todo lists, and can submit time entries to Redmine.
+Glance is a Mac productivity app that fetches Backlog issues and calendar events, generates prioritized todo lists (sorted locally by priority/due dates), and uses AI to match completed tasks to Redmine projects for time entry submission. Optionally sends daily work reports via email.
 
 ### Core Data Flow
 
@@ -54,6 +54,8 @@ User clicks "生成工时记录"
 
 - **CalendarService** (`Services/CalendarService.swift`): Actor wrapping EventKit. Handles macOS 13/14+ authorization differences (`requestAccess` vs `requestFullAccessToEvents`).
 
+- **EmailService** (`Services/EmailService.swift`): Actor for native SMTP. Sends HTML-formatted daily work reports with SSL/TLS support.
+
 - **TodoItem** (`Models/TodoItem.swift`): Three sources via `TodoSource` enum:
   - `.backlog` - with issueKey, issueURL, priority, dates, milestones
   - `.calendar` - with eventId, start/end times, location
@@ -61,8 +63,8 @@ User clicks "生成工时记录"
 
 ### Storage
 
-- **UserDefaults**: Backlog URL, Redmine URL, AI base URL, selected model, calendar settings, todo items (JSON encoded)
-- **Keychain**: API keys stored via `KeychainHelper` (service: `com.glance.app`) - separate keys for Backlog, OpenAI, Redmine
+- **UserDefaults**: Backlog URL, Redmine URL, AI base URL, selected model, calendar settings, email settings, todo items (JSON encoded), pending time entries (JSON encoded)
+- **Keychain**: API keys stored via `KeychainHelper` (service: `com.glance.app`) - keys for Backlog, OpenAI, Redmine, and email password
 
 ### UI Structure
 

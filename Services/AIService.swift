@@ -431,7 +431,7 @@ private struct DeepSeekErrorResponse: Codable {
 
 // MARK: - Redmine Matching Response Models
 
-struct ProjectMatchResult: Codable {
+struct ProjectMatchResult: Codable, Sendable {
     let todoTitle: String
     let projectId: Int
     let projectName: String
@@ -440,11 +440,11 @@ struct ProjectMatchResult: Codable {
     let comments: String
 }
 
-struct ProjectMatchResponse: Codable {
+struct ProjectMatchResponse: Codable, Sendable {
     let entries: [ProjectMatchResult]
 }
 
-struct IssueMatchResult: Codable {
+struct IssueMatchResult: Codable, Sendable {
     let issueId: Int
     let issueSubject: String
 }

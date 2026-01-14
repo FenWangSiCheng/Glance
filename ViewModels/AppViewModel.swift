@@ -12,7 +12,7 @@ enum NavigationDestination: Hashable {
 @MainActor
 class AppViewModel: ObservableObject {
     // Shared instance for Settings scene
-    static let shared = AppViewModel()
+    @MainActor static let shared = AppViewModel()
 
     // Navigation
     @Published var selectedDestination: NavigationDestination = .todos

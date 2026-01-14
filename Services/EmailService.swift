@@ -103,9 +103,10 @@ actor EmailService {
         }
 
         let connection = NWConnection(host: host, port: port, using: parameters)
+        let timeout = connectionTimeout
 
         return try await withCheckedThrowingContinuation { continuation in
-            connection.stateUpdateHandler = { state in
+            connection.stateUpdateHandler = { @Sendable state in
                 switch state {
                 case .ready:
                     connection.stateUpdateHandler = nil
@@ -123,7 +124,7 @@ actor EmailService {
             connection.start(queue: .global())
 
             // Timeout
-            DispatchQueue.global().asyncAfter(deadline: .now() + connectionTimeout) {
+            DispatchQueue.global().asyncAfter(deadline: .now() + timeout) { @Sendable in
                 if case .setup = connection.state {
                     connection.cancel()
                 }
@@ -283,7 +284,7 @@ actor EmailService {
         let data = Data((command + "\r\n").utf8)
 
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            connection.send(content: data, completion: .contentProcessed { error in
+            connection.send(content: data, completion: .contentProcessed { @Sendable error in
                 if let error = error {
                     continuation.resume(throwing: EmailError.sendFailed(error.localizedDescription))
                 } else {
@@ -295,7 +296,7 @@ actor EmailService {
 
     private func readResponse(connection: NWConnection) async throws -> String {
         return try await withCheckedThrowingContinuation { continuation in
-            connection.receive(minimumIncompleteLength: 1, maximumLength: 4096) { data, _, _, error in
+            connection.receive(minimumIncompleteLength: 1, maximumLength: 4096) { @Sendable data, _, _, error in
                 if let error = error {
                     continuation.resume(throwing: EmailError.connectionFailed(error.localizedDescription))
                     return

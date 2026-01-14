@@ -1,12 +1,12 @@
 import Foundation
 
-enum TodoSource: String, Codable, Hashable {
+enum TodoSource: String, Codable, Hashable, Sendable {
     case backlog
     case custom
     case calendar
 }
 
-struct TodoItem: Identifiable, Codable, Hashable {
+struct TodoItem: Identifiable, Codable, Hashable, Sendable {
     let id: UUID
     var title: String
     var isCompleted: Bool

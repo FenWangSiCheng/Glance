@@ -1,6 +1,6 @@
 import Foundation
 
-struct BacklogIssue: Identifiable, Codable, Hashable {
+struct BacklogIssue: Identifiable, Codable, Hashable, Sendable {
     let id: Int
     let issueKey: String
     let summary: String
@@ -11,17 +11,17 @@ struct BacklogIssue: Identifiable, Codable, Hashable {
     let dueDate: String?
     let milestone: [Milestone]
 
-    struct Priority: Codable, Hashable {
+    struct Priority: Codable, Hashable, Sendable {
         let id: Int
         let name: String
     }
 
-    struct Status: Codable, Hashable {
+    struct Status: Codable, Hashable, Sendable {
         let id: Int
         let name: String
     }
 
-    struct Milestone: Codable, Hashable {
+    struct Milestone: Codable, Hashable, Sendable {
         let id: Int
         let name: String
     }

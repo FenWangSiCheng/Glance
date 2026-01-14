@@ -650,9 +650,9 @@ struct CalendarSettingsTab: View {
     private func loadCalendars() {
         Task {
             let service = CalendarService()
-            let calendars = await service.fetchCalendars()
+            let calendars = await service.fetchCalendarInfo()
             await MainActor.run {
-                availableCalendars = Dictionary(uniqueKeysWithValues: calendars.map { ($0.calendarIdentifier, $0.title) })
+                availableCalendars = Dictionary(uniqueKeysWithValues: calendars.map { ($0.id, $0.title) })
             }
         }
     }

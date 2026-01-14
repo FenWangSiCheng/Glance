@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Email Configuration
 
-struct EmailConfiguration: Codable {
+struct EmailConfiguration: Codable, Sendable {
     var senderEmail: String
     var recipientEmails: [String]
     var smtpHost: String

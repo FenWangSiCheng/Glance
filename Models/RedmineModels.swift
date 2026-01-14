@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Redmine Project
 
-struct RedmineProject: Codable, Identifiable, Hashable {
+struct RedmineProject: Codable, Identifiable, Hashable, Sendable {
     let id: Int
     let name: String
     let identifier: String
@@ -11,7 +11,7 @@ struct RedmineProject: Codable, Identifiable, Hashable {
     var isArchived: Bool { status == 5 }
 }
 
-struct RedmineProjectsResponse: Codable {
+struct RedmineProjectsResponse: Codable, Sendable {
     let projects: [RedmineProject]
     let totalCount: Int
     let offset: Int
@@ -27,14 +27,14 @@ struct RedmineProjectsResponse: Codable {
 
 // MARK: - Redmine Issue
 
-struct RedmineIssue: Codable, Identifiable, Hashable {
+struct RedmineIssue: Codable, Identifiable, Hashable, Sendable {
     let id: Int
     let subject: String
     let project: Reference
     let tracker: Reference
     let status: Reference
 
-    struct Reference: Codable, Hashable {
+    struct Reference: Codable, Hashable, Sendable {
         let id: Int
         let name: String
     }
@@ -44,7 +44,7 @@ struct RedmineIssue: Codable, Identifiable, Hashable {
     }
 }
 
-struct RedmineIssuesResponse: Codable {
+struct RedmineIssuesResponse: Codable, Sendable {
     let issues: [RedmineIssue]
     let totalCount: Int
     let offset: Int
@@ -60,12 +60,12 @@ struct RedmineIssuesResponse: Codable {
 
 // MARK: - Redmine Activity
 
-struct RedmineActivity: Codable, Identifiable, Hashable {
+struct RedmineActivity: Codable, Identifiable, Hashable, Sendable {
     let id: Int
     let name: String
 }
 
-struct RedmineActivitiesResponse: Codable {
+struct RedmineActivitiesResponse: Codable, Sendable {
     let timeEntryActivities: [RedmineActivity]
 
     enum CodingKeys: String, CodingKey {
@@ -75,7 +75,7 @@ struct RedmineActivitiesResponse: Codable {
 
 // MARK: - Redmine Time Entry
 
-struct RedmineTimeEntry: Codable {
+struct RedmineTimeEntry: Codable, Sendable {
     let projectId: Int
     let issueId: Int
     let activityId: Int
@@ -93,7 +93,7 @@ struct RedmineTimeEntry: Codable {
     }
 }
 
-struct RedmineTimeEntryRequest: Codable {
+struct RedmineTimeEntryRequest: Codable, Sendable {
     let timeEntry: RedmineTimeEntry
 
     enum CodingKeys: String, CodingKey {
@@ -103,7 +103,7 @@ struct RedmineTimeEntryRequest: Codable {
 
 // MARK: - Pending Time Entry (Local)
 
-struct PendingTimeEntry: Identifiable, Codable {
+struct PendingTimeEntry: Identifiable, Codable, Sendable {
     let id: UUID
     let timeEntry: RedmineTimeEntry
 
@@ -136,7 +136,7 @@ struct PendingTimeEntry: Identifiable, Codable {
 
 // MARK: - Redmine User (for connection test)
 
-struct RedmineUser: Codable {
+struct RedmineUser: Codable, Sendable {
     let id: Int
     let login: String
     let firstname: String
@@ -156,6 +156,6 @@ struct RedmineUser: Codable {
     }
 }
 
-struct RedmineUserResponse: Codable {
+struct RedmineUserResponse: Codable, Sendable {
     let user: RedmineUser
 }

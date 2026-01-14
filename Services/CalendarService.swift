@@ -117,8 +117,11 @@ actor CalendarService {
         }
     }
 
-    func fetchCalendars() async -> [EKCalendar] {
-        eventStore.calendars(for: .event)
+    /// Returns calendar info (id and title) in a Sendable format
+    func fetchCalendarInfo() async -> [CalendarInfo] {
+        eventStore.calendars(for: .event).map { calendar in
+            CalendarInfo(id: calendar.calendarIdentifier, title: calendar.title)
+        }
     }
 
     func fetchEvents(
@@ -132,7 +135,7 @@ actor CalendarService {
         } else {
             calendars = nil
         }
-        
+
         let calendar = Calendar.current
         let startDate = calendar.startOfDay(for: Date())
         let endDate: Date
@@ -141,13 +144,13 @@ actor CalendarService {
         } else {
             endDate = calendar.date(byAdding: .day, value: daysAhead, to: startDate)!
         }
-        
+
         let predicate = eventStore.predicateForEvents(
             withStart: startDate,
             end: endDate,
             calendars: calendars
         )
-        
+
         return eventStore.events(matching: predicate).map { event in
             CalendarEvent(
                 id: event.eventIdentifier,
@@ -160,5 +163,11 @@ actor CalendarService {
             )
         }
     }
+}
+
+/// Sendable representation of calendar info for cross-actor use
+struct CalendarInfo: Sendable {
+    let id: String
+    let title: String
 }
 
