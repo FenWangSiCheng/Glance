@@ -8,6 +8,7 @@ struct GlanceApp: App {
         WindowGroup {
             MainView()
                 .environmentObject(viewModel)
+                .tint(AppTheme.accent)
         }
         .windowStyle(.automatic)
         .windowToolbarStyle(.unified(showsTitle: true))

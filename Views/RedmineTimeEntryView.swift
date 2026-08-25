@@ -62,13 +62,16 @@ struct RedmineTimeEntryView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 20) {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.large) {
                 formSection
                 pendingListSection
             }
-            .padding(20)
+            .padding(AppTheme.Spacing.large)
+            .frame(maxWidth: 920, alignment: .leading)
+            .frame(maxWidth: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(AppTheme.background)
         .navigationTitle("Redmine 工时")
         .toolbar {
             ToolbarItem(placement: .automatic) {
@@ -167,8 +170,13 @@ struct RedmineTimeEntryView: View {
     // MARK: - Form Section
 
     private var formSection: some View {
-        Form {
-            Section {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.medium) {
+            Label("新增工时", systemImage: "plus.square")
+                .font(AppTheme.FontStyle.heading)
+                .foregroundStyle(AppTheme.textPrimary)
+
+            Form {
+                Section {
                 // Date picker
                 LabeledContent("日期") {
                     DatePicker("", selection: $selectedDate, displayedComponents: .date)
@@ -268,28 +276,32 @@ struct RedmineTimeEntryView: View {
                             .foregroundStyle(Color(.tertiaryLabelColor))
                     }
                 }
-            } footer: {
-                HStack {
-                    Spacer()
-                    Button {
-                        addToList()
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "plus.circle.fill")
-                                .accessibilityHidden(true)
-                            Text("添加到列表")
+                } footer: {
+                    HStack {
+                        Spacer()
+                        Button {
+                            addToList()
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "plus.circle.fill")
+                                    .accessibilityHidden(true)
+                                Text("添加到列表")
+                            }
                         }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.regular)
+                        .disabled(!canAddEntry)
+                        .accessibilityLabel("添加到列表")
+                        .accessibilityHint("将当前工时记录添加到待提交列表")
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.regular)
-                    .disabled(!canAddEntry)
-                    .accessibilityLabel("添加到列表")
-                    .accessibilityHint("将当前工时记录添加到待提交列表")
+                    .padding(.top, 8)
                 }
-                .padding(.top, 8)
             }
+            .formStyle(.grouped)
+            .scrollContentBackground(.hidden)
+            .frame(minHeight: 365)
         }
-        .formStyle(.grouped)
+        .appCard()
     }
 
     // MARK: - Pending List Section
@@ -300,15 +312,15 @@ struct RedmineTimeEntryView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "list.bullet.clipboard")
                         .font(.headline)
-                        .foregroundStyle(Color.blue)
+                        .foregroundStyle(AppTheme.accent)
 
                     Text("待提交列表")
                         .font(.headline)
-                        .foregroundStyle(Color(.labelColor))
+                        .foregroundStyle(AppTheme.textPrimary)
 
                     Text("(\(viewModel.pendingTimeEntries.count))")
                         .font(.subheadline)
-                        .foregroundStyle(Color(.secondaryLabelColor))
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
 
                 Spacer()
@@ -341,32 +353,23 @@ struct RedmineTimeEntryView: View {
                 VStack(spacing: 16) {
                     ZStack {
                         Circle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        Color.blue.opacity(0.15),
-                                        Color.blue.opacity(0.05),
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
+                            .fill(AppTheme.accentSoft)
                             .frame(width: 80, height: 80)
 
                         Image(systemName: "tray")
                             .font(.system(size: 32, weight: .light))
-                            .foregroundStyle(Color.blue.opacity(0.6))
+                            .foregroundStyle(AppTheme.accent)
                     }
 
                     VStack(spacing: 6) {
                         Text("暂无待提交的工时记录")
                             .font(.body)
                             .fontWeight(.medium)
-                            .foregroundStyle(Color(.labelColor))
+                            .foregroundStyle(AppTheme.textPrimary)
 
                         Text("填写上方表单添加工时记录")
                             .font(.subheadline)
-                            .foregroundStyle(Color(.secondaryLabelColor))
+                            .foregroundStyle(AppTheme.textSecondary)
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -379,9 +382,7 @@ struct RedmineTimeEntryView: View {
                 }
             }
         }
-        .padding()
-        .background(Color(.controlBackgroundColor))
-        .cornerRadius(8)
+        .appCard()
     }
 
     private func pendingEntryRow(_ entry: PendingTimeEntry) -> some View {
@@ -392,14 +393,12 @@ struct RedmineTimeEntryView: View {
                 displayEntryView(entry)
             }
         }
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color(.controlBackgroundColor))
-        )
+        .background(AppTheme.surfaceRaised)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.medium, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 10)
+            RoundedRectangle(cornerRadius: AppTheme.Radius.medium, style: .continuous)
                 .strokeBorder(
-                    editingEntryId == entry.id ? Color.blue : Color(.separatorColor).opacity(0.5),
+                    editingEntryId == entry.id ? AppTheme.accent : AppTheme.divider.opacity(0.8),
                     lineWidth: editingEntryId == entry.id ? 2 : 0.5
                 )
         )
@@ -417,18 +416,18 @@ struct RedmineTimeEntryView: View {
             HStack {
                 HStack(spacing: 6) {
                     Circle()
-                        .fill(Color.blue.opacity(0.2))
+                        .fill(AppTheme.accentSoft)
                         .frame(width: 24, height: 24)
                         .overlay(
                             Image(systemName: "clock.fill")
                                 .font(.system(size: 10))
-                                .foregroundStyle(Color.blue)
+                                .foregroundStyle(AppTheme.accent)
                         )
 
                     Text("工时记录")
                         .font(.subheadline)
                         .fontWeight(.semibold)
-                        .foregroundStyle(Color(.labelColor))
+                        .foregroundStyle(AppTheme.textPrimary)
                 }
 
                 Spacer()
@@ -439,7 +438,7 @@ struct RedmineTimeEntryView: View {
                     } label: {
                         Image(systemName: "pencil")
                             .font(.subheadline)
-                            .foregroundStyle(Color.blue)
+                            .foregroundStyle(AppTheme.accent)
                             .frame(width: 32, height: 32)
                             .contentShape(Rectangle())
                     }
@@ -451,7 +450,7 @@ struct RedmineTimeEntryView: View {
                     } label: {
                         Image(systemName: "trash")
                             .font(.subheadline)
-                            .foregroundStyle(Color.red)
+                            .foregroundStyle(AppTheme.danger)
                             .frame(width: 32, height: 32)
                             .contentShape(Rectangle())
                     }
@@ -461,7 +460,7 @@ struct RedmineTimeEntryView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(Color(.textBackgroundColor).opacity(0.5))
+            .background(AppTheme.accentSoft.opacity(0.45))
 
             // Content
             VStack(spacing: 12) {
@@ -492,7 +491,7 @@ struct RedmineTimeEntryView: View {
 
             Text(value)
                 .font(.subheadline)
-                .foregroundStyle(Color(.labelColor))
+                .foregroundStyle(AppTheme.textPrimary)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
@@ -503,18 +502,18 @@ struct RedmineTimeEntryView: View {
             HStack {
                 HStack(spacing: 6) {
                     Circle()
-                        .fill(Color.blue.opacity(0.2))
+                        .fill(AppTheme.accentSoft)
                         .frame(width: 24, height: 24)
                         .overlay(
                             Image(systemName: "pencil")
                                 .font(.system(size: 10))
-                                .foregroundStyle(Color.blue)
+                                .foregroundStyle(AppTheme.accent)
                         )
 
                     Text("编辑工时记录")
                         .font(.subheadline)
                         .fontWeight(.semibold)
-                        .foregroundStyle(Color.blue)
+                        .foregroundStyle(AppTheme.accent)
                 }
 
                 Spacer()
@@ -535,7 +534,7 @@ struct RedmineTimeEntryView: View {
                         Text("保存")
                             .font(.subheadline)
                             .fontWeight(.semibold)
-                            .foregroundStyle(Color.blue)
+                            .foregroundStyle(AppTheme.accent)
                     }
                     .buttonStyle(.plain)
                     .disabled(!canSaveEdit)
@@ -543,7 +542,7 @@ struct RedmineTimeEntryView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(Color.blue.opacity(0.05))
+            .background(AppTheme.accentSoft.opacity(0.55))
 
             // Editing form
             VStack(spacing: 12) {

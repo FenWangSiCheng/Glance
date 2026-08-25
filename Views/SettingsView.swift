@@ -63,8 +63,10 @@ struct SettingsView: View {
                 .tag(SettingsTab.email)
                 .accessibilityLabel(SettingsTab.email.accessibilityLabel)
         }
-        .padding(20)
-        .frame(width: 560, height: 480)
+        .padding(AppTheme.Spacing.large)
+        .frame(width: 600, height: 520)
+        .background(AppTheme.background)
+        .tint(AppTheme.accent)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("设置窗口")
     }

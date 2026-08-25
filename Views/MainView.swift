@@ -57,25 +57,14 @@ struct SidebarView: View {
                 }
             }
 
-            Section("连接") {
-                if viewModel.isConfigured {
-                    Label("Backlog 已配置", systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                        .accessibilityLabel("Backlog 连接已配置")
-                } else {
-                    Button(action: openSettingsWindow) {
-                        Label("完成 Backlog 配置", systemImage: "exclamationmark.triangle.fill")
-                    }
-                    .accessibilityHint("打开设置窗口")
-                }
-            }
         }
         .listStyle(.sidebar)
         .navigationTitle("Glance")
+        .tint(AppTheme.accent)
         .navigationSplitViewColumnWidth(min: 190, ideal: 220, max: 280)
         .toolbar {
             ToolbarItem(placement: .automatic) {
-                Button(action: openSettingsWindow) {
+                SettingsLink {
                     Label("设置", systemImage: "gearshape")
                 }
                 .labelStyle(.iconOnly)
@@ -110,9 +99,6 @@ struct SidebarView: View {
         .accessibilityLabel(count > 0 ? "\(title)，\(count) 项" : title)
     }
 
-    private func openSettingsWindow() {
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-    }
 }
 
 // MARK: - Todos Detail View
@@ -138,19 +124,25 @@ struct TodosDetailView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            addTodoBar
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.large) {
+                addTodoBar
 
-            if viewModel.isGeneratingTodos || viewModel.isGeneratingTimeEntries {
-                operationStatus
-            }
+                if viewModel.isGeneratingTodos || viewModel.isGeneratingTimeEntries {
+                    operationStatus
+                }
 
-            if viewModel.todoItems.isEmpty && newTodoText.isEmpty {
-                emptyState
-            } else {
-                todosList
+                if viewModel.todoItems.isEmpty && newTodoText.isEmpty {
+                    emptyState
+                } else {
+                    todosList
+                }
             }
+            .padding(AppTheme.Spacing.large)
+            .frame(maxWidth: 920, alignment: .leading)
+            .frame(maxWidth: .infinity)
         }
+        .background(AppTheme.background)
         .navigationTitle("待办清单")
         .toolbar {
             ToolbarItem(placement: .automatic) {
@@ -165,7 +157,7 @@ struct TodosDetailView: View {
                                 .controlSize(.small)
                                 .accessibilityHidden(true)
                         } else {
-                            Image(systemName: "sparkles")
+                            Image(systemName: "arrow.triangle.2.circlepath")
                                 .accessibilityHidden(true)
                         }
                         Text(viewModel.isGeneratingTodos ? "生成中..." : "同步")
@@ -260,15 +252,17 @@ struct TodosDetailView: View {
     }
 
     private var addTodoBar: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "plus.circle")
-                .font(.title2)
-                .foregroundStyle(Color(.tertiaryLabelColor))
+        HStack(spacing: AppTheme.Spacing.medium) {
+            Image(systemName: "plus")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(AppTheme.accent)
+                .frame(width: 30, height: 30)
+                .background(AppTheme.accentSoft, in: Circle())
                 .accessibilityHidden(true)
 
-            TextField("添加新待办...", text: $newTodoText)
+            TextField("写下下一件要做的事…", text: $newTodoText)
                 .textFieldStyle(.plain)
-                .font(.body)
+                .font(AppTheme.FontStyle.body)
                 .focused($isNewTodoFocused)
                 .onSubmit {
                     addNewTodo()
@@ -281,17 +275,14 @@ struct TodosDetailView: View {
                     addNewTodo()
                 } label: {
                     Text("添加")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
+                        .font(AppTheme.FontStyle.subheading)
                 }
                 .buttonStyle(.borderedProminent)
-                .controlSize(.small)
+                .controlSize(.regular)
                 .accessibilityLabel("添加待办")
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(Color(.controlBackgroundColor))
+        .appCard()
     }
 
     private func addNewTodo() {
@@ -313,7 +304,7 @@ struct TodosDetailView: View {
     }
 
     private var todosList: some View {
-        List {
+        LazyVStack(spacing: AppTheme.Spacing.small) {
             ForEach(viewModel.todoItems) { item in
                 TodoItemRow(
                     item: item,
@@ -344,7 +335,6 @@ struct TodosDetailView: View {
                 )
             }
         }
-        .listStyle(.inset(alternatesRowBackgrounds: true))
     }
 
     private var operationStatus: some View {
@@ -359,9 +349,10 @@ struct TodosDetailView: View {
 
             Spacer()
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(.quaternary.opacity(0.5))
+        .padding(.horizontal, AppTheme.Spacing.medium)
+        .padding(.vertical, AppTheme.Spacing.small)
+        .background(AppTheme.accentSoft)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.small, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(operationStatusText)
         .accessibilityAddTraits(.updatesFrequently)
@@ -394,7 +385,7 @@ struct TodoItemRow: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: AppTheme.Spacing.medium) {
             Button {
                 withAnimation(standardAnimation) {
                     onToggle()
@@ -403,8 +394,8 @@ struct TodoItemRow: View {
                 Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
                     .font(.title3)
                     .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(item.isCompleted ? Color.green : Color.secondary)
-                    .frame(minWidth: 28, minHeight: 28)
+                    .foregroundStyle(item.isCompleted ? AppTheme.success : AppTheme.textSecondary)
+                    .frame(width: 32, height: 32)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -417,7 +408,13 @@ struct TodoItemRow: View {
                 normalContent
             }
         }
-        .padding(.vertical, 6)
+        .padding(AppTheme.Spacing.medium)
+        .background(AppTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.medium, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppTheme.Radius.medium, style: .continuous)
+                .stroke(AppTheme.divider.opacity(item.isCompleted ? 0.45 : 0.8), lineWidth: 1)
+        }
         .accessibilityElement(children: .contain)
     }
 
@@ -440,13 +437,14 @@ struct TodoItemRow: View {
     }
 
     private var normalContent: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.small) {
             // First row: title + actions
             HStack(spacing: 8) {
                 // Title
                 Text(item.title)
+                    .font(AppTheme.FontStyle.subheading)
                     .strikethrough(item.isCompleted)
-                    .foregroundStyle(item.isCompleted ? Color(.secondaryLabelColor) : Color(.labelColor))
+                    .foregroundStyle(item.isCompleted ? AppTheme.textSecondary : AppTheme.textPrimary)
                     .lineLimit(2)
                     .onTapGesture(count: 2) {
                         onStartEdit()
@@ -459,9 +457,9 @@ struct TodoItemRow: View {
                     Button {
                         onStartEdit()
                     } label: {
-                        Image(systemName: "pencil")
-                            .foregroundStyle(Color(.secondaryLabelColor))
-                            .frame(width: 24, height: 24)
+                            Image(systemName: "pencil")
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .frame(width: 28, height: 28)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -474,8 +472,8 @@ struct TodoItemRow: View {
                             NSWorkspace.shared.open(url)
                         } label: {
                             Image(systemName: "arrow.up.right.square")
-                                .foregroundStyle(Color(.secondaryLabelColor))
-                                .frame(width: 24, height: 24)
+                                .foregroundStyle(AppTheme.textSecondary)
+                                .frame(width: 28, height: 28)
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
@@ -489,9 +487,9 @@ struct TodoItemRow: View {
                             onDelete()
                         }
                     } label: {
-                        Image(systemName: "trash")
-                            .foregroundStyle(Color(.systemRed).opacity(0.8))
-                            .frame(width: 24, height: 24)
+                            Image(systemName: "trash")
+                            .foregroundStyle(AppTheme.danger)
+                            .frame(width: 28, height: 28)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -501,7 +499,7 @@ struct TodoItemRow: View {
             }
 
             // Second row: issue key, priority, dates, and actual hours
-            HStack(alignment: .center, spacing: 8) {
+                HStack(alignment: .center, spacing: AppTheme.Spacing.small) {
                 // Issue key/source badge
                 issueKeyBadge
 
@@ -531,10 +529,10 @@ struct TodoItemRow: View {
                         Text(milestone)
                             .font(.caption)
                             .fontWeight(.medium)
-                            .foregroundStyle(.purple)
+                            .foregroundStyle(AppTheme.accentStrong)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(Color.purple.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
+                            .background(AppTheme.accentSoft, in: RoundedRectangle(cornerRadius: 4))
                     }
                 }
 
@@ -554,10 +552,10 @@ struct TodoItemRow: View {
                             .font(.caption)
                             .fontWeight(.medium)
                     }
-                    .foregroundStyle(.green)
+                    .foregroundStyle(AppTheme.success)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(Color.green.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
+                    .background(AppTheme.success.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
                 }
 
                 Spacer()
@@ -576,10 +574,10 @@ struct TodoItemRow: View {
                     Text(issueKey)
                         .font(.caption)
                         .fontWeight(.medium)
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(AppTheme.accentStrong)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(Color.blue.opacity(0.2), in: RoundedRectangle(cornerRadius: 4))
+                        .background(AppTheme.accentSoft, in: RoundedRectangle(cornerRadius: 4))
                 }
                 .buttonStyle(.plain)
                 .help("在浏览器中打开票据")
@@ -600,11 +598,11 @@ struct TodoItemRow: View {
     private func priorityColor(_ priority: String) -> Color {
         switch priority {
         case "高", "High":
-            return Color.red
+            return AppTheme.danger
         case "中", "Normal", "Medium":
-            return Color.orange
+            return AppTheme.warning
         case "低", "Low":
-            return Color.green
+            return AppTheme.success
         default:
             return Color(.secondaryLabelColor)
         }
@@ -693,44 +691,34 @@ struct EmptyStateView: View {
     let subtitle: String
 
     var body: some View {
-        VStack(spacing: 24) {
-            // Icon with gradient background circle
+        VStack(spacing: AppTheme.Spacing.large) {
             ZStack {
                 Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color.blue.opacity(0.15),
-                                Color.blue.opacity(0.05),
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 100, height: 100)
+                    .fill(AppTheme.accentSoft)
+                    .frame(width: 88, height: 88)
 
                 Image(systemName: icon)
-                    .font(.system(size: 40, weight: .light))
-                    .foregroundStyle(Color.blue.opacity(0.6))
+                    .font(.system(size: 34, weight: .light))
+                    .foregroundStyle(AppTheme.accent)
             }
             .accessibilityHidden(true)
 
             VStack(spacing: 8) {
                 Text(title)
-                    .font(.title3)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color(.labelColor))
+                    .font(AppTheme.FontStyle.heading)
+                    .foregroundStyle(AppTheme.textPrimary)
                     .accessibilityAddTraits(.isHeader)
 
                 Text(subtitle)
-                    .font(.body)
-                    .foregroundStyle(Color(.secondaryLabelColor))
+                    .font(AppTheme.FontStyle.body)
+                    .foregroundStyle(AppTheme.textSecondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(32)
+        .padding(AppTheme.Spacing.xLarge)
+        .appCard(padding: 0)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(title)，\(subtitle)")
         .accessibilityAddTraits(.isHeader)
@@ -746,19 +734,19 @@ struct HoursInputSheet: View {
     let onCancel: () -> Void
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.large) {
             Text("输入完成工时")
-                .font(.title2)
-                .fontWeight(.semibold)
+                .font(.system(size: 24, weight: .bold, design: .serif))
+                .foregroundStyle(AppTheme.textPrimary)
 
             Text(todoTitle)
                 .font(.body)
-                .foregroundStyle(Color(.secondaryLabelColor))
+                .foregroundStyle(AppTheme.textSecondary)
                 .lineLimit(2)
-                .multilineTextAlignment(.center)
+                .multilineTextAlignment(.leading)
                 .padding(.horizontal)
 
-            HStack(spacing: 8) {
+            HStack(spacing: AppTheme.Spacing.small) {
                 TextField("工时（小时）", text: $hoursInput)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 150)
@@ -768,10 +756,11 @@ struct HoursInputSheet: View {
                     }
 
                 Text("小时")
-                    .foregroundStyle(Color(.secondaryLabelColor))
+                    .foregroundStyle(AppTheme.textSecondary)
             }
 
-            HStack(spacing: 12) {
+            HStack(spacing: AppTheme.Spacing.small) {
+                Spacer()
                 Button("取消") {
                     onCancel()
                 }
@@ -784,8 +773,9 @@ struct HoursInputSheet: View {
                 .disabled(hoursInput.isEmpty || Double(hoursInput) == nil || Double(hoursInput)! <= 0)
             }
         }
-        .padding(24)
+        .padding(AppTheme.Spacing.large)
         .frame(width: 400)
+        .background(AppTheme.background)
         .onAppear {
             isHoursInputFocused = true
         }
