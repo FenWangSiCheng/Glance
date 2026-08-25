@@ -51,16 +51,15 @@ actor RedmineService {
             throw RedmineError.invalidConfiguration
         }
 
-        let urlString = "\(baseURL)\(path)"
-        guard let url = URL(string: urlString) else {
+        guard let url = URL(string: "\(baseURL)\(path)") else {
             throw RedmineError.invalidURL
         }
 
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue(apiKey, forHTTPHeaderField: "X-Redmine-API-Key")
-        
-        if let body = body {
+
+        if let body {
             request.httpBody = body
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
@@ -79,8 +78,7 @@ actor RedmineService {
                 throw RedmineError.apiError("HTTP \(httpResponse.statusCode)")
             }
 
-            let decoded = try JSONDecoder().decode(T.self, from: data)
-            return decoded
+            return try JSONDecoder().decode(T.self, from: data)
         } catch let error as RedmineError {
             throw error
         } catch let error as DecodingError {
@@ -108,7 +106,7 @@ actor RedmineService {
             let response: RedmineProjectsResponse = try await performRequest(
                 path: "/projects.json?limit=\(limit)&offset=\(offset)"
             )
-            
+
             let activeProjects = response.projects.filter { !$0.isArchived }
             allProjects.append(contentsOf: activeProjects)
 
@@ -142,9 +140,8 @@ actor RedmineService {
 
     func submitTimeEntry(_ entry: RedmineTimeEntry) async throws {
         let requestBody = RedmineTimeEntryRequest(timeEntry: entry)
-        let encoder = JSONEncoder()
-        let body = try encoder.encode(requestBody)
-        
+        let body = try JSONEncoder().encode(requestBody)
+
         // Use a dummy response type since we don't need the response body
         struct EmptyResponse: Codable {}
         let _: EmptyResponse = try await performRequest(

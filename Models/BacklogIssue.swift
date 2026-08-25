@@ -35,7 +35,7 @@ struct BacklogIssue: Identifiable, Codable, Hashable, Sendable {
     }
 
     var formattedDueDate: String {
-        guard let dueDate = dueDate else { return "无截止日期" }
+        guard let dueDate else { return "无截止日期" }
         let inputFormatter = DateFormatter()
         inputFormatter.dateFormat = "yyyy-MM-dd"
 

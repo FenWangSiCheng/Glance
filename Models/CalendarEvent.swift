@@ -9,4 +9,3 @@ struct CalendarEvent: Identifiable, Codable, Sendable {
     let location: String?
     let calendarName: String
 }
-

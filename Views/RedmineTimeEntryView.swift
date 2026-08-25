@@ -36,7 +36,7 @@ struct RedmineTimeEntryView: View {
     // Confirmation dialogs
     @State private var showingClearConfirmation = false
     @State private var showingSubmitConfirmation = false
-    
+
     // Editing state
     @State private var editingEntryId: UUID?
     @State private var editDate = Date()
@@ -55,12 +55,8 @@ struct RedmineTimeEntryView: View {
     }
 
     private var canAddEntry: Bool {
-        selectedProject != nil &&
-        selectedIssue != nil &&
-        selectedActivity != nil &&
-        !hours.isEmpty &&
-        Double(hours) != nil &&
-        !comments.isEmpty
+        selectedProject != nil && selectedIssue != nil && selectedActivity != nil && !hours.isEmpty
+            && Double(hours) != nil && !comments.isEmpty
     }
 
     var body: some View {
@@ -191,7 +187,7 @@ struct RedmineTimeEntryView: View {
                             }
                         }
                         .labelsHidden()
-                        .onChange(of: selectedProject) { _ in
+                        .onChange(of: selectedProject) {
                             selectedIssue = nil
                             issues = []
                             // Load issues for the selected project
@@ -237,10 +233,10 @@ struct RedmineTimeEntryView: View {
 
                 // Hours input
                 LabeledContent("工时(h)") {
-                    TextField("例如:2.5", text: $hours,)
+                    TextField("例如:2.5", text: $hours, )
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 120)
-                        
+
                 }
 
                 // Comments input
@@ -258,14 +254,14 @@ struct RedmineTimeEntryView: View {
                                 RoundedRectangle(cornerRadius: 6)
                                     .stroke(Color(.separatorColor), lineWidth: 1)
                             )
-                            .onChange(of: comments) { newValue in
-                                if newValue.count > 20 {
-                                    comments = String(newValue.prefix(20))
+                            .onChange(of: comments) { _, newValue in
+                                if newValue.count > RedmineTimeEntry.commentsMaxLength {
+                                    comments = String(newValue.prefix(RedmineTimeEntry.commentsMaxLength))
                                 }
                             }
                             .accessibilityLabel("工时描述")
-                            .accessibilityHint("输入工作内容描述，最多20字")
-                        Text("\(comments.count)/20")
+                            .accessibilityHint("输入工作内容描述，最多\(RedmineTimeEntry.commentsMaxLength)字")
+                        Text("\(comments.count)/\(RedmineTimeEntry.commentsMaxLength)")
                             .font(.caption)
                             .foregroundStyle(Color(.tertiaryLabelColor))
                     }
@@ -370,7 +366,7 @@ struct RedmineTimeEntryView: View {
                                 LinearGradient(
                                     colors: [
                                         Color.blue.opacity(0.15),
-                                        Color.blue.opacity(0.05)
+                                        Color.blue.opacity(0.05),
                                     ],
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
@@ -435,7 +431,7 @@ struct RedmineTimeEntryView: View {
             y: 1
         )
     }
-    
+
     private func displayEntryView(_ entry: PendingTimeEntry) -> some View {
         VStack(spacing: 0) {
             // Header with actions
@@ -500,7 +496,7 @@ struct RedmineTimeEntryView: View {
             .padding(16)
         }
     }
-    
+
     private func infoRow(label: String, value: String, icon: String) -> some View {
         HStack(alignment: .top, spacing: 12) {
             HStack(spacing: 6) {
@@ -521,7 +517,7 @@ struct RedmineTimeEntryView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
-    
+
     private func editingEntryView(_ entry: PendingTimeEntry) -> some View {
         VStack(spacing: 0) {
             // Header
@@ -569,7 +565,7 @@ struct RedmineTimeEntryView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .background(Color.blue.opacity(0.05))
-            
+
             // Editing form
             VStack(spacing: 12) {
                 // Date
@@ -582,7 +578,7 @@ struct RedmineTimeEntryView: View {
                         .labelsHidden()
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                
+
                 // Project
                 HStack {
                     Text("项目")
@@ -597,7 +593,7 @@ struct RedmineTimeEntryView: View {
                     }
                     .labelsHidden()
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .onChange(of: editProject) { _ in
+                    .onChange(of: editProject) {
                         editIssue = nil
                         editIssues = []
                         // Load issues for the selected project
@@ -606,7 +602,7 @@ struct RedmineTimeEntryView: View {
                         }
                     }
                 }
-                
+
                 // Issue (tracker is auto-matched from issue)
                 HStack {
                     Text("任务")
@@ -629,7 +625,7 @@ struct RedmineTimeEntryView: View {
                         .disabled(editProject == nil)
                     }
                 }
-                
+
                 // Activity
                 HStack {
                     Text("活动类型")
@@ -645,7 +641,7 @@ struct RedmineTimeEntryView: View {
                     .labelsHidden()
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                
+
                 // Hours
                 HStack {
                     Text("工时(h)")
@@ -656,7 +652,7 @@ struct RedmineTimeEntryView: View {
                         .textFieldStyle(.roundedBorder)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                
+
                 // Comments
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
@@ -665,7 +661,7 @@ struct RedmineTimeEntryView: View {
                             .foregroundStyle(Color(.secondaryLabelColor))
                             .frame(width: 70, alignment: .leading)
                         Spacer()
-                        Text("\(editComments.count)/20")
+                        Text("\(editComments.count)/\(RedmineTimeEntry.commentsMaxLength)")
                             .font(.caption)
                             .foregroundStyle(Color(.tertiaryLabelColor))
                     }
@@ -681,9 +677,9 @@ struct RedmineTimeEntryView: View {
                             RoundedRectangle(cornerRadius: 6)
                                 .stroke(Color(.separatorColor), lineWidth: 1)
                         )
-                        .onChange(of: editComments) { newValue in
-                            if newValue.count > 20 {
-                                editComments = String(newValue.prefix(20))
+                        .onChange(of: editComments) { _, newValue in
+                            if newValue.count > RedmineTimeEntry.commentsMaxLength {
+                                editComments = String(newValue.prefix(RedmineTimeEntry.commentsMaxLength))
                             }
                         }
                 }
@@ -691,34 +687,30 @@ struct RedmineTimeEntryView: View {
             .padding(12)
         }
     }
-    
+
     private var canSaveEdit: Bool {
-        editProject != nil &&
-        editIssue != nil &&
-        editActivity != nil &&
-        !editHours.isEmpty &&
-        Double(editHours) != nil &&
-        !editComments.isEmpty
+        editProject != nil && editIssue != nil && editActivity != nil && !editHours.isEmpty
+            && Double(editHours) != nil && !editComments.isEmpty
     }
-    
+
     private func startEditing(_ entry: PendingTimeEntry) {
         editingEntryId = entry.id
-        
+
         // Parse date
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         editDate = formatter.date(from: entry.timeEntry.spentOn) ?? Date()
-        
+
         // Set project
         editProject = projects.first { $0.id == entry.timeEntry.projectId }
-        
+
         // Set activity
         editActivity = activities.first { $0.id == entry.timeEntry.activityId }
-        
+
         // Set hours and comments
         editHours = entry.timeEntry.hours
         editComments = entry.timeEntry.comments
-        
+
         // Load issues for the project
         if let project = editProject {
             loadEditIssuesByProject(projectId: project.id)
@@ -728,7 +720,7 @@ struct RedmineTimeEntryView: View {
             }
         }
     }
-    
+
     private func cancelEditing() {
         editingEntryId = nil
         editDate = Date()
@@ -739,14 +731,15 @@ struct RedmineTimeEntryView: View {
         editComments = ""
         editIssues = []
     }
-    
+
     private func saveEditing(_ entry: PendingTimeEntry) {
         guard let project = editProject,
-              let issue = editIssue,
-              let activity = editActivity else {
+            let issue = editIssue,
+            let activity = editActivity
+        else {
             return
         }
-        
+
         let updatedTimeEntry = RedmineTimeEntry(
             projectId: project.id,
             issueId: issue.id,
@@ -755,7 +748,7 @@ struct RedmineTimeEntryView: View {
             hours: editHours,
             comments: editComments
         )
-        
+
         let updatedEntry = PendingTimeEntry(
             id: entry.id,
             timeEntry: updatedTimeEntry,
@@ -764,14 +757,14 @@ struct RedmineTimeEntryView: View {
             issueId: issue.id,
             activityName: activity.name
         )
-        
+
         viewModel.updatePendingTimeEntry(updatedEntry)
         cancelEditing()
     }
-    
+
     private func loadEditIssuesByProject(projectId: Int) {
         isLoadingEditIssues = true
-        
+
         Task {
             do {
                 let fetchedIssues = try await viewModel.fetchRedmineIssues(projectId: projectId)
@@ -798,14 +791,14 @@ struct RedmineTimeEntryView: View {
             activities = viewModel.cachedRedmineActivities
             return
         }
-        
+
         isLoadingProjects = true
         isLoadingActivities = true
 
         Task {
             do {
                 try await viewModel.loadRedmineInitialDataIfNeeded()
-                
+
                 await MainActor.run {
                     projects = viewModel.cachedRedmineProjects
                     activities = viewModel.cachedRedmineActivities
@@ -878,8 +871,9 @@ struct RedmineTimeEntryView: View {
 
     private func addToList() {
         guard let project = selectedProject,
-              let issue = selectedIssue,
-              let activity = selectedActivity else {
+            let issue = selectedIssue,
+            let activity = selectedActivity
+        else {
             return
         }
 

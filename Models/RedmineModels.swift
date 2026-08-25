@@ -76,6 +76,8 @@ struct RedmineActivitiesResponse: Codable, Sendable {
 // MARK: - Redmine Time Entry
 
 struct RedmineTimeEntry: Codable, Sendable {
+    static let commentsMaxLength = 255
+
     let projectId: Int
     let issueId: Int
     let activityId: Int
@@ -131,6 +133,26 @@ struct PendingTimeEntry: Identifiable, Codable, Sendable {
         self.issueSubject = issueSubject
         self.issueId = issueId
         self.activityName = activityName
+    }
+
+    func updatingSpentOn(_ spentOn: String) -> PendingTimeEntry {
+        let updatedTimeEntry = RedmineTimeEntry(
+            projectId: timeEntry.projectId,
+            issueId: timeEntry.issueId,
+            activityId: timeEntry.activityId,
+            spentOn: spentOn,
+            hours: timeEntry.hours,
+            comments: timeEntry.comments
+        )
+
+        return PendingTimeEntry(
+            id: id,
+            timeEntry: updatedTimeEntry,
+            projectName: projectName,
+            issueSubject: issueSubject,
+            issueId: issueId,
+            activityName: activityName
+        )
     }
 }
 

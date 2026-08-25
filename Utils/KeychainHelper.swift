@@ -12,16 +12,10 @@ enum KeychainHelper {
     private static let service = "com.glance.app"
 
     static func save(key: String, value: String) throws {
-        guard let data = value.data(using: .utf8) else {
-            throw KeychainError.invalidData
-        }
+        let data = try encodedData(for: value)
 
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key,
-            kSecValueData as String: data
-        ]
+        var query = baseQuery(for: key)
+        query[kSecValueData as String] = data
 
         let status = SecItemAdd(query as CFDictionary, nil)
 
@@ -33,15 +27,8 @@ enum KeychainHelper {
     }
 
     static func update(key: String, value: String) throws {
-        guard let data = value.data(using: .utf8) else {
-            throw KeychainError.invalidData
-        }
-
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key
-        ]
+        let data = try encodedData(for: value)
+        let query = baseQuery(for: key)
 
         let attributes: [String: Any] = [
             kSecValueData as String: data
@@ -55,20 +42,17 @@ enum KeychainHelper {
     }
 
     static func get(key: String) -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
+        var query = baseQuery(for: key)
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
 
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
 
         guard status == errSecSuccess,
-              let data = result as? Data,
-              let value = String(data: data, encoding: .utf8) else {
+            let data = result as? Data,
+            let value = String(data: data, encoding: .utf8)
+        else {
             return nil
         }
 
@@ -76,17 +60,26 @@ enum KeychainHelper {
     }
 
     static func delete(key: String) throws {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key
-        ]
-
-        let status = SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(baseQuery(for: key) as CFDictionary)
 
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw KeychainError.unexpectedStatus(status)
         }
+    }
+
+    private static func baseQuery(for key: String) -> [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: key,
+        ]
+    }
+
+    private static func encodedData(for value: String) throws -> Data {
+        guard let data = value.data(using: .utf8) else {
+            throw KeychainError.invalidData
+        }
+        return data
     }
 }
 
@@ -104,7 +97,8 @@ extension KeychainHelper {
 
     static func getCredentials() -> Credentials {
         guard let jsonString = get(key: credentialsKey),
-              let data = jsonString.data(using: .utf8) else {
+            let data = jsonString.data(using: .utf8)
+        else {
             return Credentials()
         }
         do {

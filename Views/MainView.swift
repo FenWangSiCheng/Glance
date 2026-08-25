@@ -1,5 +1,5 @@
-import SwiftUI
 import AppKit
+import SwiftUI
 
 // MARK: - Main View
 struct MainView: View {
@@ -93,7 +93,8 @@ struct SidebarView: View {
                     NavigationRow(
                         icon: "clock.fill",
                         title: "Redmine 工时",
-                        badge: viewModel.pendingTimeEntries.isEmpty ? nil : "\(viewModel.pendingTimeEntries.count)",
+                        badge: viewModel.pendingTimeEntries.isEmpty
+                            ? nil : "\(viewModel.pendingTimeEntries.count)",
                         badgeColor: Color.orange,
                         isSelected: viewModel.selectedDestination == .timeEntry
                     ) {
@@ -289,7 +290,9 @@ struct TodosDetailView: View {
                             Text(viewModel.isGeneratingTimeEntries ? "生成中..." : "生成工时")
                         }
                     }
-                    .disabled(!hasCompletedTodos || viewModel.isGeneratingTimeEntries || viewModel.isGeneratingTodos)
+                    .disabled(
+                        !hasCompletedTodos || viewModel.isGeneratingTimeEntries || viewModel.isGeneratingTodos
+                    )
                     .accessibilityLabel("生成工时")
                     .accessibilityHint("根据已完成的待办自动生成 Redmine 工时记录")
                     .help("根据已完成的待办生成工时")
@@ -317,8 +320,9 @@ struct TodosDetailView: View {
                 isHoursInputFocused: _isHoursInputFocused,
                 onConfirm: {
                     if let todo = todoToComplete,
-                       let hours = Double(hoursInput),
-                       hours > 0 {
+                        let hours = Double(hoursInput),
+                        hours > 0
+                    {
                         viewModel.completeTodoWithHours(todo, hours: hours)
                         showingHoursInput = false
                         hoursInput = ""
@@ -593,7 +597,7 @@ struct TodoItemRow: View {
         .accessibilityHint("双击切换完成状态")
         .accessibilityAddTraits(item.isCompleted ? [.isSelected] : [])
     }
-    
+
     private var sourceDescription: String {
         switch item.source {
         case .backlog:
@@ -730,7 +734,7 @@ struct TodoItemRow: View {
                         .font(.caption)
                         .foregroundStyle(Color(.secondaryLabelColor))
                 }
-                
+
                 // Time and location info (Calendar)
                 if item.source == .calendar {
                     if let startTime = item.eventStartTime, let endTime = item.eventEndTime {
@@ -738,7 +742,7 @@ struct TodoItemRow: View {
                             .font(.caption)
                             .foregroundStyle(Color(.secondaryLabelColor))
                     }
-                    
+
                     if let location = item.eventLocation, !location.isEmpty {
                         HStack(spacing: 2) {
                             Image(systemName: "location.fill")
@@ -749,7 +753,7 @@ struct TodoItemRow: View {
                         .foregroundStyle(Color(.secondaryLabelColor))
                     }
                 }
-                
+
                 // Actual hours badge (if completed and has hours)
                 if item.isCompleted, let hours = item.actualHours {
                     HStack(spacing: 2) {
@@ -857,7 +861,7 @@ struct TodoItemRow: View {
         outputFormatter.dateFormat = "yyyy/MM/dd"
         return outputFormatter.string(from: date)
     }
-    
+
     private func formatTime(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
@@ -873,9 +877,9 @@ struct TodoItemRow: View {
         let due = Calendar.current.startOfDay(for: dueDate)
 
         if due < today {
-            return Color(.systemRed) // Overdue
+            return Color(.systemRed)  // Overdue
         } else if Calendar.current.dateComponents([.day], from: today, to: due).day ?? 0 <= 3 {
-            return Color(.systemOrange) // Due soon (within 3 days)
+            return Color(.systemOrange)  // Due soon (within 3 days)
         } else {
             return Color(.secondaryLabelColor)
         }
@@ -897,7 +901,7 @@ struct EmptyStateView: View {
                         LinearGradient(
                             colors: [
                                 Color.blue.opacity(0.15),
-                                Color.blue.opacity(0.05)
+                                Color.blue.opacity(0.05),
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
@@ -940,20 +944,20 @@ struct HoursInputSheet: View {
     @FocusState var isHoursInputFocused: Bool
     let onConfirm: () -> Void
     let onCancel: () -> Void
-    
+
     var body: some View {
         VStack(spacing: 20) {
             Text("输入完成工时")
                 .font(.title2)
                 .fontWeight(.semibold)
-            
+
             Text(todoTitle)
                 .font(.body)
                 .foregroundStyle(Color(.secondaryLabelColor))
                 .lineLimit(2)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
-            
+
             HStack(spacing: 8) {
                 TextField("工时（小时）", text: $hoursInput)
                     .textFieldStyle(.roundedBorder)
@@ -962,17 +966,17 @@ struct HoursInputSheet: View {
                     .onSubmit {
                         onConfirm()
                     }
-                
+
                 Text("小时")
                     .foregroundStyle(Color(.secondaryLabelColor))
             }
-            
+
             HStack(spacing: 12) {
                 Button("取消") {
                     onCancel()
                 }
                 .keyboardShortcut(.cancelAction)
-                
+
                 Button("确定") {
                     onConfirm()
                 }
@@ -1037,7 +1041,10 @@ struct NavigationRow: View {
             .frame(minHeight: 48)
             .background(
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(isSelected ? Color.blue.opacity(0.1) : (isHovering ? Color(.separatorColor).opacity(0.3) : Color.clear))
+                    .fill(
+                        isSelected
+                            ? Color.blue.opacity(0.1)
+                            : (isHovering ? Color(.separatorColor).opacity(0.3) : Color.clear))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 10)

@@ -86,7 +86,7 @@ struct TodoItem: Identifiable, Codable, Hashable, Sendable {
     static func custom(title: String) -> TodoItem {
         TodoItem(title: title, source: .custom)
     }
-    
+
     static func calendar(
         title: String,
         eventId: String,
@@ -94,7 +94,7 @@ struct TodoItem: Identifiable, Codable, Hashable, Sendable {
         endTime: Date,
         location: String? = nil
     ) -> TodoItem {
-        return TodoItem(
+        TodoItem(
             title: title,
             source: .calendar,
             eventId: eventId,

@@ -7,7 +7,7 @@ actor CalendarService {
         case accessRestricted
         case noCalendarFound(String)
         case fetchError(Error)
-        
+
         var errorDescription: String? {
             switch self {
             case .accessDenied:
@@ -21,29 +21,26 @@ actor CalendarService {
             }
         }
     }
-    
+
     private let eventStore = EKEventStore()
 
     func requestAccess() async throws -> Bool {
         print("📅 [CalendarService] Requesting calendar access...")
 
         let currentStatus = await checkAuthorizationStatus()
-        print("📅 [CalendarService] Current authorization status: \(currentStatus.rawValue) (\(statusDescription(currentStatus)))")
+        print(
+            "📅 [CalendarService] Current authorization status: \(currentStatus.rawValue) (\(statusDescription(currentStatus)))"
+        )
 
-        if currentStatus == .authorized {
+        if hasReadAccess(currentStatus) {
             print("✅ [CalendarService] Already have calendar access")
             return true
         }
 
-        if #available(macOS 14.0, *) {
-            if currentStatus == .fullAccess {
-                print("✅ [CalendarService] Already have full calendar access")
-                return true
-            }
-        }
-
         if currentStatus == .denied {
-            print("❌ [CalendarService] Calendar access denied, user needs to grant permission in System Settings")
+            print(
+                "❌ [CalendarService] Calendar access denied, user needs to grant permission in System Settings"
+            )
             throw CalendarError.accessDenied
         }
 
@@ -64,15 +61,19 @@ actor CalendarService {
             }
 
             let finalStatus = await checkAuthorizationStatus()
-            print("📅 [CalendarService] Final authorization status: \(finalStatus.rawValue) (\(statusDescription(finalStatus)))")
+            print(
+                "📅 [CalendarService] Final authorization status: \(finalStatus.rawValue) (\(statusDescription(finalStatus)))"
+            )
 
-            return finalStatus == .fullAccess || finalStatus == .authorized
+            return hasReadAccess(finalStatus)
         } else {
             print("📅 [CalendarService] Using macOS 13.0 API")
             result = try await withCheckedThrowingContinuation { continuation in
                 eventStore.requestAccess(to: .event) { granted, error in
-                    print("📅 [CalendarService] Access callback: granted=\(granted), error=\(String(describing: error))")
-                    if let error = error {
+                    print(
+                        "📅 [CalendarService] Access callback: granted=\(granted), error=\(String(describing: error))"
+                    )
+                    if let error {
                         continuation.resume(throwing: error)
                     } else {
                         continuation.resume(returning: granted)
@@ -82,6 +83,14 @@ actor CalendarService {
             print("📅 [CalendarService] Access request completed, result: \(result)")
             return result
         }
+    }
+
+    private func hasReadAccess(_ status: EKAuthorizationStatus) -> Bool {
+        if #available(macOS 14.0, *) {
+            return status == .fullAccess
+        }
+        // EKAuthorizationStatus.authorized has raw value 3 on macOS 13 and earlier.
+        return status.rawValue == 3
     }
 
     private func statusDescription(_ status: EKAuthorizationStatus) -> String {
@@ -110,11 +119,11 @@ actor CalendarService {
     }
 
     func checkAuthorizationStatus() async -> EKAuthorizationStatus {
-        if #available(macOS 14.0, *) {
-            return EKEventStore.authorizationStatus(for: .event)
-        } else {
-            return EKEventStore.authorizationStatus(for: .event)
-        }
+        EKEventStore.authorizationStatus(for: .event)
+    }
+
+    func hasCalendarAccess() async -> Bool {
+        hasReadAccess(await checkAuthorizationStatus())
     }
 
     /// Returns calendar info (id and title) in a Sendable format
@@ -129,9 +138,9 @@ actor CalendarService {
         daysAhead: Int = 1
     ) async throws -> [CalendarEvent] {
         let calendars: [EKCalendar]?
-        if let ids = calendarIds, !ids.isEmpty {
+        if let calendarIds, !calendarIds.isEmpty {
             calendars = eventStore.calendars(for: .event)
-                .filter { ids.contains($0.calendarIdentifier) }
+                .filter { calendarIds.contains($0.calendarIdentifier) }
         } else {
             calendars = nil
         }
@@ -140,7 +149,9 @@ actor CalendarService {
         let startDate = calendar.startOfDay(for: Date())
         let endDate: Date
         if daysAhead == 1 {
-            endDate = calendar.date(bySettingHour: 23, minute: 59, second: 59, of: Date()) ?? calendar.date(byAdding: .day, value: 1, to: startDate)!
+            endDate =
+                calendar.date(bySettingHour: 23, minute: 59, second: 59, of: Date()) ?? calendar.date(
+                    byAdding: .day, value: 1, to: startDate)!
         } else {
             endDate = calendar.date(byAdding: .day, value: daysAhead, to: startDate)!
         }
@@ -170,4 +181,3 @@ struct CalendarInfo: Sendable {
     let id: String
     let title: String
 }
-

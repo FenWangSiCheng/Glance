@@ -1,6 +1,6 @@
+import AppKit
 import Foundation
 import SwiftUI
-import AppKit
 
 // MARK: - Navigation State
 
@@ -31,7 +31,7 @@ class AppViewModel: ObservableObject {
     @Published var selectedModel: String {
         didSet { UserDefaults.standard.set(selectedModel, forKey: "selectedModel") }
     }
-    
+
     // Calendar settings
     @Published var calendarEnabled: Bool {
         didSet { UserDefaults.standard.set(calendarEnabled, forKey: "calendarEnabled") }
@@ -89,13 +89,13 @@ class AppViewModel: ObservableObject {
         didSet { savePendingTimeEntries() }
     }
     @Published var redmineUser: RedmineUser?
-    
+
     // Redmine cached data (loaded once)
     @Published var cachedRedmineProjects: [RedmineProject] = []
     @Published var cachedRedmineActivities: [RedmineActivity] = []
     @Published var isLoadingRedmineData = false
     private var redmineDataLoaded = false
-    private var cachedRedmineIssues: [Int: [RedmineIssue]] = [:]  // projectId -> issues
+    private var cachedRedmineIssues: [Int: [RedmineIssue]] = [:]
 
     // Time entry generation state
     @Published var isGeneratingTimeEntries = false
@@ -115,7 +115,7 @@ class AppViewModel: ObservableObject {
         "deepseek-reasoner",
         "moonshot-v1-8k",
         "moonshot-v1-32k",
-        "moonshot-v1-128k"
+        "moonshot-v1-128k",
     ]
 
     var isConfigured: Bool {
@@ -127,11 +127,8 @@ class AppViewModel: ObservableObject {
     }
 
     var isEmailConfigured: Bool {
-        emailEnabled &&
-        !emailUserName.isEmpty &&
-        !senderEmail.isEmpty &&
-        !emailPassword.isEmpty &&
-        !recipientEmails.isEmpty
+        emailEnabled && !emailUserName.isEmpty && !senderEmail.isEmpty && !emailPassword.isEmpty
+            && !recipientEmails.isEmpty
     }
 
     init() {
@@ -141,12 +138,16 @@ class AppViewModel: ObservableObject {
         self.backlogURL = UserDefaults.standard.string(forKey: "backlogURL") ?? ""
         self.backlogAPIKey = credentials.backlogAPIKey
         self.openAIAPIKey = credentials.openAIAPIKey
-        self.openAIBaseURL = UserDefaults.standard.string(forKey: "openAIBaseURL") ?? "https://api.deepseek.com"
+        self.openAIBaseURL =
+            UserDefaults.standard.string(forKey: "openAIBaseURL") ?? "https://api.deepseek.com"
         self.selectedModel = UserDefaults.standard.string(forKey: "selectedModel") ?? "deepseek-chat"
         self.calendarEnabled = UserDefaults.standard.bool(forKey: "calendarEnabled")
-        self.selectedCalendarIds = UserDefaults.standard.stringArray(forKey: "selectedCalendarIds") ?? []
-        self.calendarDaysAhead = UserDefaults.standard.integer(forKey: "calendarDaysAhead") != 0 ? UserDefaults.standard.integer(forKey: "calendarDaysAhead") : 1
-        self.redmineURL = UserDefaults.standard.string(forKey: "redmineURL") ?? "https://fenrir-inc.cn/redmine"
+        self.selectedCalendarIds =
+            UserDefaults.standard.stringArray(forKey: "selectedCalendarIds") ?? []
+        let storedCalendarDaysAhead = UserDefaults.standard.integer(forKey: "calendarDaysAhead")
+        self.calendarDaysAhead = storedCalendarDaysAhead == 0 ? 1 : storedCalendarDaysAhead
+        self.redmineURL =
+            UserDefaults.standard.string(forKey: "redmineURL") ?? "https://fenrir-inc.cn/redmine"
         self.redmineAPIKey = credentials.redmineAPIKey
 
         // Email settings
@@ -154,14 +155,15 @@ class AppViewModel: ObservableObject {
         self.emailUserName = UserDefaults.standard.string(forKey: "emailUserName") ?? ""
         self.senderEmail = UserDefaults.standard.string(forKey: "senderEmail") ?? ""
         self.emailPassword = credentials.emailPassword
-        self.recipientEmails = UserDefaults.standard.string(forKey: "recipientEmails") ?? "staff-ml@fenrir-inc.com.cn"
+        self.recipientEmails =
+            UserDefaults.standard.string(forKey: "recipientEmails") ?? "staff-ml@fenrir-inc.com.cn"
         self.smtpHost = UserDefaults.standard.string(forKey: "smtpHost") ?? "smtp.exmail.qq.com"
         self.smtpPort = UserDefaults.standard.string(forKey: "smtpPort") ?? "465"
         self.emailUseSSL = UserDefaults.standard.object(forKey: "emailUseSSL") as? Bool ?? true
 
         self.todoItems = Self.loadTodoItems()
         self.pendingTimeEntries = Self.loadPendingTimeEntries()
-        
+
         // Synchronize dates in pending entries on app restart
         self.synchronizePendingEntryDates()
 
@@ -195,11 +197,11 @@ class AppViewModel: ObservableObject {
             print("❌ [AppViewModel] Failed to save todo items: \(error)")
         }
     }
-    
+
     // MARK: - Pending Time Entry Persistence
-    
+
     private static let pendingTimeEntriesKey = "pendingTimeEntries"
-    
+
     private static func loadPendingTimeEntries() -> [PendingTimeEntry] {
         guard let data = UserDefaults.standard.data(forKey: pendingTimeEntriesKey) else {
             return []
@@ -211,7 +213,7 @@ class AppViewModel: ObservableObject {
             return []
         }
     }
-    
+
     private func savePendingTimeEntries() {
         do {
             let data = try JSONEncoder().encode(pendingTimeEntries)
@@ -220,44 +222,18 @@ class AppViewModel: ObservableObject {
             print("❌ [AppViewModel] Failed to save pending time entries: \(error)")
         }
     }
-    
+
     /// Synchronize dates in pending time entries to today's date
     /// This is called on app restart to update old dates
     private func synchronizePendingEntryDates() {
         guard !pendingTimeEntries.isEmpty else { return }
-        
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-        let todayString = dateFormatter.string(from: Date())
-        
-        // Update each entry's spentOn date to today
-        var updatedEntries: [PendingTimeEntry] = []
-        for entry in pendingTimeEntries {
-            var updatedTimeEntry = entry.timeEntry
-            updatedTimeEntry = RedmineTimeEntry(
-                projectId: updatedTimeEntry.projectId,
-                issueId: updatedTimeEntry.issueId,
-                activityId: updatedTimeEntry.activityId,
-                spentOn: todayString,
-                hours: updatedTimeEntry.hours,
-                comments: updatedTimeEntry.comments
-            )
-            
-                let updatedPendingEntry = PendingTimeEntry(
-                id: entry.id,
-                timeEntry: updatedTimeEntry,
-                projectName: entry.projectName,
-                issueSubject: entry.issueSubject,
-                issueId: entry.issueId,
-                activityName: entry.activityName
-            )
-            updatedEntries.append(updatedPendingEntry)
-        }
-        
-        // Temporarily disable didSet to avoid double-saving
-        pendingTimeEntries = updatedEntries
-        
-        print("✅ [AppViewModel] Synchronized \(updatedEntries.count) pending entry dates to \(todayString)")
+
+        let todayString = Self.currentDateString()
+        pendingTimeEntries = pendingTimeEntries.map { $0.updatingSpentOn(todayString) }
+
+        print(
+            "✅ [AppViewModel] Synchronized \(pendingTimeEntries.count) pending entry dates to \(todayString)"
+        )
     }
 
     /// Convert Backlog issues to TodoItems with local sorting (no AI needed)
@@ -266,28 +242,26 @@ class AppViewModel: ObservableObject {
     /// 2. Higher priority items first
     /// 3. Items with earlier due dates first
     /// 4. Items with start dates before today first
-    private func convertIssuesToTodos(issues: [BacklogIssue], calendarEvents: [CalendarEvent]) -> [TodoItem] {
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-        let today = dateFormatter.string(from: Date())
-        
+    private func convertIssuesToTodos(issues: [BacklogIssue]) -> [TodoItem] {
+        let today = Self.currentDateString()
+
         // Sort issues by priority and due date
         let sortedIssues = issues.sorted { issue1, issue2 in
             // 1. Due today or overdue comes first
-            let issue1DueToday = issue1.dueDate != nil && issue1.dueDate! <= today
-            let issue2DueToday = issue2.dueDate != nil && issue2.dueDate! <= today
-            
+            let issue1DueToday = issue1.dueDate.map { $0 <= today } ?? false
+            let issue2DueToday = issue2.dueDate.map { $0 <= today } ?? false
+
             if issue1DueToday != issue2DueToday {
                 return issue1DueToday
             }
-            
+
             // 2. Higher priority first (lower ID = higher priority in Backlog)
             let priority1 = issue1.priority?.id ?? 999
             let priority2 = issue2.priority?.id ?? 999
             if priority1 != priority2 {
                 return priority1 < priority2
             }
-            
+
             // 3. Earlier due date first
             if let due1 = issue1.dueDate, let due2 = issue2.dueDate {
                 if due1 != due2 {
@@ -298,15 +272,15 @@ class AppViewModel: ObservableObject {
             } else if issue2.dueDate != nil {
                 return false
             }
-            
+
             // 4. Earlier start date first
             if let start1 = issue1.startDate, let start2 = issue2.startDate {
                 return start1 < start2
             }
-            
+
             return false
         }
-        
+
         // Convert to TodoItems
         let baseURL = backlogURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         return sortedIssues.map { issue in
@@ -330,58 +304,49 @@ class AppViewModel: ObservableObject {
         newCalendarItems: [TodoItem]
     ) -> [TodoItem] {
         var result = existing.filter { $0.source == .custom }
-
-        var existingBacklogMap: [String: TodoItem] = [:]
-        for item in existing where item.source == .backlog {
-            if let key = item.issueKey {
-                existingBacklogMap[key] = item
-            }
-        }
-
-        for newItem in newBacklogItems {
-            guard let issueKey = newItem.issueKey else { continue }
-
-            if let existingItem = existingBacklogMap[issueKey] {
-                var updatedItem = newItem
-                updatedItem.isCompleted = existingItem.isCompleted
-                updatedItem.actualHours = existingItem.actualHours
-                result.append(updatedItem)
-                existingBacklogMap.removeValue(forKey: issueKey)
-            } else {
-                result.append(newItem)
-            }
-        }
-
-        for (_, item) in existingBacklogMap where item.isCompleted {
-            result.append(item)
-        }
-
-        var existingCalendarMap: [String: TodoItem] = [:]
-        for item in existing where item.source == .calendar {
-            if let eventId = item.eventId {
-                existingCalendarMap[eventId] = item
-            }
-        }
-
-        for newItem in newCalendarItems {
-            guard let eventId = newItem.eventId else { continue }
-
-            if let existingItem = existingCalendarMap[eventId] {
-                var updatedItem = newItem
-                updatedItem.isCompleted = existingItem.isCompleted
-                updatedItem.actualHours = existingItem.actualHours
-                result.append(updatedItem)
-                existingCalendarMap.removeValue(forKey: eventId)
-            } else {
-                result.append(newItem)
-            }
-        }
-
-        for (_, item) in existingCalendarMap where item.isCompleted {
-            result.append(item)
-        }
-
+        result += mergeFetchedItems(
+            existing: existing,
+            newItems: newBacklogItems,
+            source: .backlog,
+            identifier: \.issueKey
+        )
+        result += mergeFetchedItems(
+            existing: existing,
+            newItems: newCalendarItems,
+            source: .calendar,
+            identifier: \.eventId
+        )
         return result
+    }
+
+    private func mergeFetchedItems(
+        existing: [TodoItem],
+        newItems: [TodoItem],
+        source: TodoSource,
+        identifier: KeyPath<TodoItem, String?>
+    ) -> [TodoItem] {
+        var existingByIdentifier: [String: TodoItem] = [:]
+        for item in existing where item.source == source {
+            guard let itemIdentifier = item[keyPath: identifier] else { continue }
+            existingByIdentifier[itemIdentifier] = item
+        }
+
+        var mergedItems: [TodoItem] = []
+        for newItem in newItems {
+            guard let itemIdentifier = newItem[keyPath: identifier] else { continue }
+
+            if let existingItem = existingByIdentifier.removeValue(forKey: itemIdentifier) {
+                var updatedItem = newItem
+                updatedItem.isCompleted = existingItem.isCompleted
+                updatedItem.actualHours = existingItem.actualHours
+                mergedItems.append(updatedItem)
+            } else {
+                mergedItems.append(newItem)
+            }
+        }
+
+        mergedItems += existingByIdentifier.values.filter(\.isCompleted)
+        return mergedItems
     }
 
     func fetchAndGenerateTodos() async {
@@ -395,6 +360,7 @@ class AppViewModel: ObservableObject {
 
         isGeneratingTodos = true
         errorMessage = nil
+        defer { isGeneratingTodos = false }
 
         do {
             var backlogTodos: [TodoItem] = []
@@ -432,13 +398,12 @@ class AppViewModel: ObservableObject {
 
             if issues.isEmpty && calendarEvents.isEmpty {
                 showError("暂无分配给您的票据或日历事件")
-                isGeneratingTodos = false
                 return
             }
 
             if !issues.isEmpty {
                 print("📋 [AppViewModel] Converting issues to todo items...")
-                backlogTodos = convertIssuesToTodos(issues: issues, calendarEvents: calendarEvents)
+                backlogTodos = convertIssuesToTodos(issues: issues)
             }
 
             todoItems = mergeTodoItems(
@@ -453,7 +418,6 @@ class AppViewModel: ObservableObject {
             showError(error.localizedDescription)
         }
 
-        isGeneratingTodos = false
         print("🏁 [AppViewModel] fetchAndGenerateTodos finished")
     }
 
@@ -465,7 +429,7 @@ class AppViewModel: ObservableObject {
             }
         }
     }
-    
+
     func completeTodoWithHours(_ todo: TodoItem, hours: Double) {
         if let index = todoItems.firstIndex(where: { $0.id == todo.id }) {
             todoItems[index].isCompleted = true
@@ -517,7 +481,7 @@ class AppViewModel: ObservableObject {
             return false
         }
     }
-    
+
     // MARK: - Calendar Methods
 
     func requestCalendarAccess() async {
@@ -540,7 +504,8 @@ class AppViewModel: ObservableObject {
             calendarAccessGranted = false
 
             if case .accessDenied = error {
-                showError("日历访问权限已被拒绝。\n\n请按以下步骤操作：\n1. 点击下方按钮打开系统设置\n2. 前往 隐私与安全性 > 日历\n3. 点击 🔒 解锁并添加 Glance")
+                showError(
+                    "日历访问权限已被拒绝。\n\n请按以下步骤操作：\n1. 点击下方按钮打开系统设置\n2. 前往 隐私与安全性 > 日历\n3. 点击 🔒 解锁并添加 Glance")
             } else {
                 showError(error.localizedDescription)
             }
@@ -554,7 +519,9 @@ class AppViewModel: ObservableObject {
     func openSystemPrivacySettings() {
         print("🔧 [AppViewModel] Attempting to open system privacy settings...")
 
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars") {
+        if let url = URL(
+            string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")
+        {
             NSWorkspace.shared.open(url)
             print("✅ [AppViewModel] Opened system settings")
             return
@@ -576,11 +543,7 @@ class AppViewModel: ObservableObject {
 
         print("📅 [AppViewModel] Checking calendar status: \(status.rawValue)")
 
-        if #available(macOS 14.0, *) {
-            calendarAccessGranted = (status == .fullAccess || status == .authorized)
-        } else {
-            calendarAccessGranted = (status == .authorized)
-        }
+        calendarAccessGranted = await service.hasCalendarAccess()
 
         print("📅 [AppViewModel] calendarAccessGranted = \(calendarAccessGranted)")
     }
@@ -605,17 +568,14 @@ class AppViewModel: ObservableObject {
         do {
             let service = RedmineService(baseURL: redmineURL, apiKey: redmineAPIKey)
             let user = try await service.testConnection()
-            
+
             // Save user info
-            await MainActor.run {
-                redmineUser = user
-                
-                // Auto-fill email username if empty
-                if emailUserName.isEmpty {
-                    emailUserName = user.fullName
-                }
+            redmineUser = user
+
+            if emailUserName.isEmpty {
+                emailUserName = user.fullName
             }
-            
+
             return true
         } catch {
             print("❌ [AppViewModel] Redmine connection test failed: \(error)")
@@ -631,7 +591,6 @@ class AppViewModel: ObservableObject {
         let service = RedmineService(baseURL: redmineURL, apiKey: redmineAPIKey)
         return try await service.fetchProjects()
     }
-
 
     func fetchRedmineIssues(projectId: Int) async throws -> [RedmineIssue] {
         guard isRedmineConfigured else {
@@ -650,7 +609,7 @@ class AppViewModel: ObservableObject {
         let service = RedmineService(baseURL: redmineURL, apiKey: redmineAPIKey)
         return try await service.fetchActivities()
     }
-    
+
     /// Load Redmine initial data (projects, activities) once and cache them
     func loadRedmineInitialDataIfNeeded() async throws {
         // Skip if already loaded
@@ -658,30 +617,32 @@ class AppViewModel: ObservableObject {
             print("📦 [AppViewModel] Redmine data already loaded, using cache")
             return
         }
-        
+
         guard isRedmineConfigured else {
             throw RedmineService.RedmineError.invalidConfiguration
         }
-        
+
         isLoadingRedmineData = true
         defer { isLoadingRedmineData = false }
-        
+
         print("🔄 [AppViewModel] Loading Redmine initial data...")
-        
+
         let service = RedmineService(baseURL: redmineURL, apiKey: redmineAPIKey)
-        
+
         async let projectsResult = service.fetchProjects()
         async let activitiesResult = service.fetchActivities()
-        
+
         let (projects, activities) = try await (projectsResult, activitiesResult)
-        
+
         cachedRedmineProjects = projects
         cachedRedmineActivities = activities
         redmineDataLoaded = true
-        
-        print("✅ [AppViewModel] Redmine data loaded: \(projects.count) projects, \(activities.count) activities")
+
+        print(
+            "✅ [AppViewModel] Redmine data loaded: \(projects.count) projects, \(activities.count) activities"
+        )
     }
-    
+
     /// Clear cached Redmine data (e.g., when settings change)
     func clearRedmineCache() {
         cachedRedmineProjects = []
@@ -698,7 +659,7 @@ class AppViewModel: ObservableObject {
     func removePendingTimeEntry(id: UUID) {
         pendingTimeEntries.removeAll { $0.id == id }
     }
-    
+
     func updatePendingTimeEntry(_ entry: PendingTimeEntry) {
         if let index = pendingTimeEntries.firstIndex(where: { $0.id == entry.id }) {
             pendingTimeEntries[index] = entry
@@ -710,29 +671,8 @@ class AppViewModel: ObservableObject {
     }
 
     func syncAllEntriesToToday() {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        let todayString = formatter.string(from: Date())
-
-        pendingTimeEntries = pendingTimeEntries.map { entry in
-            let updatedTimeEntry = RedmineTimeEntry(
-                projectId: entry.timeEntry.projectId,
-                issueId: entry.timeEntry.issueId,
-                activityId: entry.timeEntry.activityId,
-                spentOn: todayString,
-                hours: entry.timeEntry.hours,
-                comments: entry.timeEntry.comments
-            )
-
-            return PendingTimeEntry(
-                id: entry.id,
-                timeEntry: updatedTimeEntry,
-                projectName: entry.projectName,
-                issueSubject: entry.issueSubject,
-                issueId: entry.issueId,
-                activityName: entry.activityName
-            )
-        }
+        let todayString = Self.currentDateString()
+        pendingTimeEntries = pendingTimeEntries.map { $0.updatingSpentOn(todayString) }
     }
 
     func submitAllPendingTimeEntries() async -> (success: Int, failed: Int) {
@@ -769,8 +709,10 @@ class AppViewModel: ObservableObject {
             showError("没有已完成的待办事项")
             return
         }
-        
-        let todosWithoutHours = completedTodos.filter { $0.actualHours == nil || $0.actualHours! <= 0 }
+
+        let todosWithoutHours = completedTodos.filter { todo in
+            todo.actualHours.map { $0 <= 0 } ?? true
+        }
         if !todosWithoutHours.isEmpty {
             let titles = todosWithoutHours.map { $0.title }.joined(separator: "\n")
             showError("以下待办事项缺少工时记录：\n\n\(titles)\n\n请重新标记完成并输入工时")
@@ -789,6 +731,10 @@ class AppViewModel: ObservableObject {
 
         isGeneratingTimeEntries = true
         generationProgress = "正在获取项目列表..."
+        defer {
+            isGeneratingTimeEntries = false
+            generationProgress = ""
+        }
 
         do {
             let redmineService = RedmineService(baseURL: redmineURL, apiKey: redmineAPIKey)
@@ -817,16 +763,14 @@ class AppViewModel: ObservableObject {
                 redmineDataLoaded = true
                 print("✅ [AppViewModel] Fetched and cached Redmine data")
             }
-            
+
             guard !projects.isEmpty else {
                 showError("未找到可用的 Redmine 项目，请检查账号权限")
-                isGeneratingTimeEntries = false
                 return
             }
 
             guard !activities.isEmpty else {
                 showError("未找到可用的活动类型，请检查 Redmine 配置")
-                isGeneratingTimeEntries = false
                 return
             }
             print("✅ [AppViewModel] Fetched \(projects.count) projects, \(activities.count) activities")
@@ -838,12 +782,9 @@ class AppViewModel: ObservableObject {
                 activities: activities
             )
             print("✅ [AppViewModel] AI returned \(projectMatches.count) matches (project + activity)")
-            
-            var todoHoursMap: [String: Double] = [:]
-            for todo in completedTodos {
-                if let hours = todo.actualHours {
-                    todoHoursMap[todo.title] = hours
-                }
+
+            let todoHoursMap = completedTodos.reduce(into: [String: Double]()) { result, todo in
+                result[todo.title] = todo.actualHours
             }
 
             // 4. Group by project for batch processing
@@ -851,9 +792,7 @@ class AppViewModel: ObservableObject {
             var generatedCount = 0
 
             // Get today's date string
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "yyyy-MM-dd"
-            let todayString = dateFormatter.string(from: Date())
+            let todayString = Self.currentDateString()
 
             print("🔍 [AppViewModel] Grouped by project: \(groupedByProject.count) groups")
 
@@ -865,7 +804,8 @@ class AppViewModel: ObservableObject {
             // Snapshot of cached issues for use in TaskGroup
             let cachedIssuesSnapshot = cachedRedmineIssues
 
-            let fetchResults = await withTaskGroup(of: (Int, [RedmineIssue]?).self) { group -> [(Int, [RedmineIssue]?)] in
+            let fetchResults = await withTaskGroup(of: (Int, [RedmineIssue]?).self) {
+                group -> [(Int, [RedmineIssue]?)] in
                 for projectId in projectIds {
                     group.addTask {
                         if let cachedIssues = cachedIssuesSnapshot[projectId] {
@@ -874,7 +814,8 @@ class AppViewModel: ObservableObject {
                         }
                         do {
                             let fetchedIssues = try await redmineService.fetchIssues(projectId: projectId)
-                            print("✅ [AppViewModel] Fetched \(fetchedIssues.count) issues for project \(projectId)")
+                            print(
+                                "✅ [AppViewModel] Fetched \(fetchedIssues.count) issues for project \(projectId)")
                             return (projectId, fetchedIssues)
                         } catch {
                             print("❌ [AppViewModel] Failed to fetch issues for project \(projectId): \(error)")
@@ -940,7 +881,9 @@ class AppViewModel: ObservableObject {
                                 description: task.originalTodo?.description,
                                 issues: task.issues
                             )
-                            print("🔍 [AppViewModel] Matched todo '\(task.match.todoTitle)' to issue \(issueMatch.issueId)")
+                            print(
+                                "🔍 [AppViewModel] Matched todo '\(task.match.todoTitle)' to issue \(issueMatch.issueId)"
+                            )
                             return MatchResult(
                                 match: task.match,
                                 issueMatch: issueMatch,
@@ -948,7 +891,8 @@ class AppViewModel: ObservableObject {
                                 originalTodo: task.originalTodo
                             )
                         } catch {
-                            print("❌ [AppViewModel] Failed to match issue for '\(task.match.todoTitle)': \(error)")
+                            print(
+                                "❌ [AppViewModel] Failed to match issue for '\(task.match.todoTitle)': \(error)")
                             return nil
                         }
                     }
@@ -976,37 +920,43 @@ class AppViewModel: ObservableObject {
                 let project = projects.first(where: { $0.id == projectId })
                 let activity = activities.first(where: { $0.id == result.match.activityId })
 
-                if let project = project, let activity = activity {
-                    let actualHours = todoHoursMap[result.match.todoTitle] ?? 0
-
-                    var finalComments = String(result.match.comments.prefix(20))
-                    if let issueKey = result.originalTodo?.issueKey {
-                        finalComments = "[\(issueKey)] \(finalComments)"
-                    }
-
-                    let timeEntry = RedmineTimeEntry(
-                        projectId: projectId,
-                        issueId: matchedIssue.id,
-                        activityId: activity.id,
-                        spentOn: todayString,
-                        hours: String(actualHours),
-                        comments: finalComments
+                guard let project, let activity else {
+                    print(
+                        "⚠️ [AppViewModel] Could not create entry for: \(result.match.todoTitle) - missing required data"
                     )
-
-                    let pendingEntry = PendingTimeEntry(
-                        timeEntry: timeEntry,
-                        projectName: project.name,
-                        issueSubject: matchedIssue.subject,
-                        issueId: matchedIssue.id,
-                        activityName: activity.name
-                    )
-
-                    pendingTimeEntries.append(pendingEntry)
-                    generatedCount += 1
-                    print("✅ [AppViewModel] Added pending entry for: \(result.match.todoTitle)")
-                } else {
-                    print("⚠️ [AppViewModel] Could not create entry for: \(result.match.todoTitle) - missing required data")
+                    continue
                 }
+                let actualHours = todoHoursMap[result.match.todoTitle] ?? 0
+
+                let commentPrefix = result.originalTodo?.issueKey.map { "[\($0)] " } ?? ""
+                let availableCommentLength = max(
+                    0,
+                    RedmineTimeEntry.commentsMaxLength - commentPrefix.count
+                )
+                let finalComments =
+                    commentPrefix
+                    + String(result.match.comments.prefix(availableCommentLength))
+
+                let timeEntry = RedmineTimeEntry(
+                    projectId: projectId,
+                    issueId: matchedIssue.id,
+                    activityId: activity.id,
+                    spentOn: todayString,
+                    hours: String(actualHours),
+                    comments: finalComments
+                )
+
+                let pendingEntry = PendingTimeEntry(
+                    timeEntry: timeEntry,
+                    projectName: project.name,
+                    issueSubject: matchedIssue.subject,
+                    issueId: matchedIssue.id,
+                    activityName: activity.name
+                )
+
+                pendingTimeEntries.append(pendingEntry)
+                generatedCount += 1
+                print("✅ [AppViewModel] Added pending entry for: \(result.match.todoTitle)")
             }
 
             // 8. Navigate to time entry view
@@ -1022,8 +972,6 @@ class AppViewModel: ObservableObject {
             showError(error.localizedDescription)
         }
 
-        isGeneratingTimeEntries = false
-        generationProgress = ""
         print("🏁 [AppViewModel] generateTimeEntriesForCompletedTodos finished")
     }
 
@@ -1058,9 +1006,7 @@ class AppViewModel: ObservableObject {
         defer { isSendingEmail = false }
 
         // Build report data
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-        let todayString = dateFormatter.string(from: Date())
+        let todayString = Self.currentDateString()
 
         let reportEntries = entries.map { entry in
             DailyReportData.ReportEntry(
@@ -1073,12 +1019,14 @@ class AppViewModel: ObservableObject {
             )
         }
 
-        let reportData = DailyReportData(date: todayString, entries: reportEntries, userName: emailUserName)
+        let reportData = DailyReportData(
+            date: todayString, entries: reportEntries, userName: emailUserName)
         let subject = reportData.generateSubject()
         let body = reportData.generateHTMLReport()
 
         // Parse recipients
-        let recipients = recipientEmails
+        let recipients =
+            recipientEmails
             .components(separatedBy: ",")
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
@@ -1116,5 +1064,11 @@ class AppViewModel: ObservableObject {
             lastEmailResult = result
             return result
         }
+    }
+
+    private static func currentDateString() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: Date())
     }
 }

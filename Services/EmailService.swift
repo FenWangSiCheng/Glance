@@ -4,7 +4,6 @@ import Network
 // MARK: - Email Service
 
 actor EmailService {
-
     // MARK: - Errors
 
     enum EmailError: LocalizedError {
@@ -57,8 +56,13 @@ actor EmailService {
 
     // MARK: - Public Methods
 
-    /// Send an email
-    func sendEmail(to recipients: [String], subject: String, body: String, from senderName: String? = nil, isHTML: Bool = false) async throws {
+    func sendEmail(
+        to recipients: [String],
+        subject: String,
+        body: String,
+        from senderName: String? = nil,
+        isHTML: Bool = false
+    ) async throws {
         let connection = try await createConnection()
         defer { connection.cancel() }
 
@@ -76,7 +80,6 @@ actor EmailService {
         try await quit(connection: connection)
     }
 
-    /// Test SMTP connection and authentication
     func testConnection() async throws -> Bool {
         let connection = try await createConnection()
         defer { connection.cancel() }
@@ -123,7 +126,6 @@ actor EmailService {
             }
             connection.start(queue: .global())
 
-            // Timeout
             DispatchQueue.global().asyncAfter(deadline: .now() + timeout) { @Sendable in
                 if case .setup = connection.state {
                     connection.cancel()
@@ -133,13 +135,11 @@ actor EmailService {
     }
 
     private func performSMTPHandshake(connection: NWConnection) async throws {
-        // Read server greeting
         let greeting = try await readResponse(connection: connection)
         guard greeting.hasPrefix("220") else {
             throw EmailError.invalidResponse(greeting)
         }
 
-        // Send EHLO
         try await sendCommand(connection: connection, command: "EHLO \(smtpHost)")
         let ehloResponse = try await readResponse(connection: connection)
         guard ehloResponse.contains("250") else {
@@ -148,14 +148,12 @@ actor EmailService {
     }
 
     private func authenticate(connection: NWConnection) async throws {
-        // AUTH LOGIN
         try await sendCommand(connection: connection, command: "AUTH LOGIN")
         let authResponse = try await readResponse(connection: connection)
         guard authResponse.hasPrefix("334") else {
             throw EmailError.authenticationFailed
         }
 
-        // Send username (Base64)
         let usernameBase64 = Data(username.utf8).base64EncodedString()
         try await sendCommand(connection: connection, command: usernameBase64)
         let usernameResponse = try await readResponse(connection: connection)
@@ -163,7 +161,6 @@ actor EmailService {
             throw EmailError.authenticationFailed
         }
 
-        // Send password (Base64)
         let passwordBase64 = Data(password.utf8).base64EncodedString()
         try await sendCommand(connection: connection, command: passwordBase64)
         let passwordResponse = try await readResponse(connection: connection)
@@ -181,14 +178,12 @@ actor EmailService {
         senderName: String?,
         isHTML: Bool = false
     ) async throws {
-        // MAIL FROM
         try await sendCommand(connection: connection, command: "MAIL FROM:<\(sender)>")
         let mailFromResponse = try await readResponse(connection: connection)
         guard mailFromResponse.hasPrefix("250") else {
             throw EmailError.sendFailed("MAIL FROM rejected: \(mailFromResponse)")
         }
 
-        // RCPT TO (for each recipient)
         for recipient in recipients {
             try await sendCommand(connection: connection, command: "RCPT TO:<\(recipient)>")
             let rcptResponse = try await readResponse(connection: connection)
@@ -197,14 +192,12 @@ actor EmailService {
             }
         }
 
-        // DATA
         try await sendCommand(connection: connection, command: "DATA")
         let dataResponse = try await readResponse(connection: connection)
         guard dataResponse.hasPrefix("354") else {
             throw EmailError.sendFailed("DATA command rejected: \(dataResponse)")
         }
 
-        // Build email content
         let emailContent = buildEmailContent(
             from: sender,
             senderName: senderName,
@@ -214,7 +207,6 @@ actor EmailService {
             isHTML: isHTML
         )
 
-        // Send email content and end with CRLF.CRLF
         try await sendCommand(connection: connection, command: emailContent + "\r\n.")
         let sendResponse = try await readResponse(connection: connection)
         guard sendResponse.hasPrefix("250") else {
@@ -224,7 +216,6 @@ actor EmailService {
 
     private func quit(connection: NWConnection) async throws {
         try await sendCommand(connection: connection, command: "QUIT")
-        // Don't wait for response as server may close connection
     }
 
     private func buildEmailContent(
@@ -240,43 +231,33 @@ actor EmailService {
         dateFormatter.locale = Locale(identifier: "en_US_POSIX")
         let dateString = dateFormatter.string(from: Date())
 
-        // Encode subject for UTF-8
         let encodedSubject = encodeSubject(subject)
 
-        // Build From header
         let fromHeader: String
-        if let name = senderName, !name.isEmpty {
-            let encodedName = encodeSubject(name)
+        if let senderName, !senderName.isEmpty {
+            let encodedName = encodeSubject(senderName)
             fromHeader = "\(encodedName) <\(sender)>"
         } else {
             fromHeader = sender
         }
 
-        // Content-Type based on isHTML
         let contentType = isHTML ? "text/html; charset=UTF-8" : "text/plain; charset=UTF-8"
-        
-        // SMTP requires CRLF (\r\n) as line separator
-        // Build headers with proper CRLF line endings
-        var headers: [String] = []
-        headers.append("From: \(fromHeader)")
-        headers.append("To: \(recipients.joined(separator: ", "))")
-        headers.append("Subject: \(encodedSubject)")
-        headers.append("Date: \(dateString)")
-        headers.append("MIME-Version: 1.0")
-        headers.append("Content-Type: \(contentType)")
-        headers.append("Content-Transfer-Encoding: 8bit")
-        
-        // Join headers with CRLF, then add blank line (CRLF CRLF) before body
-        let headerSection = headers.joined(separator: "\r\n")
-        let content = headerSection + "\r\n\r\n" + body
 
-        return content
+        let headers = [
+            "From: \(fromHeader)",
+            "To: \(recipients.joined(separator: ", "))",
+            "Subject: \(encodedSubject)",
+            "Date: \(dateString)",
+            "MIME-Version: 1.0",
+            "Content-Type: \(contentType)",
+            "Content-Transfer-Encoding: 8bit",
+        ]
+
+        return headers.joined(separator: "\r\n") + "\r\n\r\n" + body
     }
 
     private func encodeSubject(_ subject: String) -> String {
-        // RFC 2047 encoding for non-ASCII subjects
-        let data = Data(subject.utf8)
-        let base64 = data.base64EncodedString()
+        let base64 = Data(subject.utf8).base64EncodedString()
         return "=?UTF-8?B?\(base64)?="
     }
 
@@ -284,25 +265,28 @@ actor EmailService {
         let data = Data((command + "\r\n").utf8)
 
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            connection.send(content: data, completion: .contentProcessed { @Sendable error in
-                if let error = error {
-                    continuation.resume(throwing: EmailError.sendFailed(error.localizedDescription))
-                } else {
-                    continuation.resume()
-                }
-            })
+            connection.send(
+                content: data,
+                completion: .contentProcessed { @Sendable error in
+                    if let error {
+                        continuation.resume(throwing: EmailError.sendFailed(error.localizedDescription))
+                    } else {
+                        continuation.resume()
+                    }
+                })
         }
     }
 
     private func readResponse(connection: NWConnection) async throws -> String {
-        return try await withCheckedThrowingContinuation { continuation in
-            connection.receive(minimumIncompleteLength: 1, maximumLength: 4096) { @Sendable data, _, _, error in
-                if let error = error {
+        try await withCheckedThrowingContinuation { continuation in
+            connection.receive(minimumIncompleteLength: 1, maximumLength: 4096) {
+                @Sendable data, _, _, error in
+                if let error {
                     continuation.resume(throwing: EmailError.connectionFailed(error.localizedDescription))
                     return
                 }
 
-                guard let data = data, let response = String(data: data, encoding: .utf8) else {
+                guard let data, let response = String(data: data, encoding: .utf8) else {
                     continuation.resume(throwing: EmailError.invalidResponse("Empty response"))
                     return
                 }

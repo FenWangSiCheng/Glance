@@ -51,7 +51,7 @@ struct SettingsView: View {
                     }
                     .tag(SettingsTab.backlog)
                     .accessibilityLabel(SettingsTab.backlog.accessibilityLabel)
-                
+
                 CalendarSettingsTab(viewModel: viewModel)
                     .tabItem {
                         Label("日历", systemImage: "calendar")
@@ -353,27 +353,30 @@ struct AISettingsTab: View {
                     Text("模型选择")
                         .font(.subheadline)
                         .foregroundStyle(Color(.secondaryLabelColor))
-                    
-                    Picker("", selection: Binding(
-                        get: {
-                            if AppViewModel.availableModels.contains(viewModel.selectedModel) {
-                                return viewModel.selectedModel
-                            } else {
-                                return "custom"
-                            }
-                        },
-                        set: { newValue in
-                            if newValue == "custom" {
-                                isUsingCustomModel = true
-                                if !customModel.isEmpty {
-                                    viewModel.selectedModel = customModel
+
+                    Picker(
+                        "",
+                        selection: Binding(
+                            get: {
+                                if AppViewModel.availableModels.contains(viewModel.selectedModel) {
+                                    return viewModel.selectedModel
+                                } else {
+                                    return "custom"
                                 }
-                            } else {
-                                isUsingCustomModel = false
-                                viewModel.selectedModel = newValue
+                            },
+                            set: { newValue in
+                                if newValue == "custom" {
+                                    isUsingCustomModel = true
+                                    if !customModel.isEmpty {
+                                        viewModel.selectedModel = customModel
+                                    }
+                                } else {
+                                    isUsingCustomModel = false
+                                    viewModel.selectedModel = newValue
+                                }
                             }
-                        }
-                    )) {
+                        )
+                    ) {
                         ForEach(AppViewModel.availableModels, id: \.self) { model in
                             Text(model).tag(model)
                         }
@@ -381,23 +384,26 @@ struct AISettingsTab: View {
                     }
                     .pickerStyle(.radioGroup)
                     .accessibilityLabel("选择 AI 模型")
-                    
+
                     if isUsingCustomModel || !AppViewModel.availableModels.contains(viewModel.selectedModel) {
-                        TextField("输入自定义模型名", text: Binding(
-                            get: {
-                                if AppViewModel.availableModels.contains(viewModel.selectedModel) {
-                                    return customModel
-                                } else {
-                                    return viewModel.selectedModel
+                        TextField(
+                            "输入自定义模型名",
+                            text: Binding(
+                                get: {
+                                    if AppViewModel.availableModels.contains(viewModel.selectedModel) {
+                                        return customModel
+                                    } else {
+                                        return viewModel.selectedModel
+                                    }
+                                },
+                                set: { newValue in
+                                    customModel = newValue
+                                    if !newValue.isEmpty {
+                                        viewModel.selectedModel = newValue
+                                    }
                                 }
-                            },
-                            set: { newValue in
-                                customModel = newValue
-                                if !newValue.isEmpty {
-                                    viewModel.selectedModel = newValue
-                                }
-                            }
-                        ))
+                            )
+                        )
                         .textFieldStyle(.roundedBorder)
                         .accessibilityLabel("自定义模型名")
                     }
@@ -501,14 +507,14 @@ struct CalendarSettingsTab: View {
     private var standardAnimation: Animation? {
         reduceMotion ? nil : .spring(response: 0.3)
     }
-    
+
     var body: some View {
         Form {
             Section {
                 Toggle("启用日历同步", isOn: $viewModel.calendarEnabled)
                     .accessibilityLabel("启用日历同步")
                     .accessibilityHint("开启后将同步系统日历事件到待办列表")
-                    .onChange(of: viewModel.calendarEnabled) { newValue in
+                    .onChange(of: viewModel.calendarEnabled) { _, newValue in
                         if newValue && !viewModel.calendarAccessGranted {
                             Task {
                                 await viewModel.requestCalendarAccess()
@@ -518,7 +524,7 @@ struct CalendarSettingsTab: View {
                             }
                         }
                     }
-                
+
                 if viewModel.calendarEnabled {
                     if viewModel.calendarAccessGranted {
                         // Calendar selection
@@ -526,7 +532,7 @@ struct CalendarSettingsTab: View {
                             Text("选择日历")
                                 .font(.subheadline)
                                 .foregroundStyle(Color(.secondaryLabelColor))
-                            
+
                             if availableCalendars.isEmpty {
                                 Text("未找到可用日历")
                                     .font(.caption)
@@ -534,23 +540,26 @@ struct CalendarSettingsTab: View {
                             } else {
                                 VStack(alignment: .leading, spacing: 4) {
                                     ForEach(Array(availableCalendars.keys.sorted()), id: \.self) { calendarId in
-                                        Toggle(availableCalendars[calendarId] ?? calendarId, isOn: Binding(
-                                            get: { viewModel.selectedCalendarIds.contains(calendarId) },
-                                            set: { isSelected in
-                                                if isSelected {
-                                                    if !viewModel.selectedCalendarIds.contains(calendarId) {
-                                                        viewModel.selectedCalendarIds.append(calendarId)
+                                        Toggle(
+                                            availableCalendars[calendarId] ?? calendarId,
+                                            isOn: Binding(
+                                                get: { viewModel.selectedCalendarIds.contains(calendarId) },
+                                                set: { isSelected in
+                                                    if isSelected {
+                                                        if !viewModel.selectedCalendarIds.contains(calendarId) {
+                                                            viewModel.selectedCalendarIds.append(calendarId)
+                                                        }
+                                                    } else {
+                                                        viewModel.selectedCalendarIds.removeAll { $0 == calendarId }
                                                     }
-                                                } else {
-                                                    viewModel.selectedCalendarIds.removeAll { $0 == calendarId }
                                                 }
-                                            }
-                                        ))
+                                            )
+                                        )
                                         .accessibilityLabel("日历: \(availableCalendars[calendarId] ?? calendarId)")
                                     }
                                 }
                             }
-                            
+
                             Text("不选择任何日历将同步所有日历的今天事件")
                                 .font(.caption)
                                 .foregroundStyle(Color(.tertiaryLabelColor))
@@ -566,11 +575,11 @@ struct CalendarSettingsTab: View {
                                     .font(.subheadline)
                                     .foregroundStyle(Color(.labelColor))
                             }
-                            
+
                             Text("Glance 需要访问您的日历以获取企业微信等应用同步的日程")
                                 .font(.caption)
                                 .foregroundStyle(Color(.secondaryLabelColor))
-                            
+
                             HStack(spacing: 12) {
                                 Button {
                                     Task {
@@ -590,7 +599,7 @@ struct CalendarSettingsTab: View {
                                 .buttonStyle(.borderedProminent)
                                 .accessibilityLabel("授权访问日历")
                                 .accessibilityHint("点击以请求日历访问权限")
-                                
+
                                 Button {
                                     viewModel.openSystemPrivacySettings()
                                 } label: {
@@ -631,7 +640,7 @@ struct CalendarSettingsTab: View {
                     Text("开启后，将从系统日历中读取事件并添加到待办列表")
                         .font(.caption)
                         .foregroundStyle(Color(.secondaryLabelColor))
-                    
+
                     Text("适用于企业微信、钉钉等应用同步到 Mac 日历的会议")
                         .font(.caption)
                         .foregroundStyle(Color(.tertiaryLabelColor))
@@ -646,7 +655,7 @@ struct CalendarSettingsTab: View {
             }
         }
     }
-    
+
     private func loadCalendars() {
         Task {
             let service = CalendarService()
@@ -680,7 +689,7 @@ struct RedmineSettingsTab: View {
                         .textFieldStyle(.roundedBorder)
                         .accessibilityLabel("Redmine URL")
                         .accessibilityHint("输入 Redmine 服务器地址")
-                        .onChange(of: viewModel.redmineURL) { _ in
+                        .onChange(of: viewModel.redmineURL) {
                             viewModel.clearRedmineCache()
                         }
                 }
@@ -693,7 +702,7 @@ struct RedmineSettingsTab: View {
                         .textFieldStyle(.roundedBorder)
                         .accessibilityLabel("Redmine API Key")
                         .accessibilityHint("输入从 Redmine 获取的 API 密钥")
-                        .onChange(of: viewModel.redmineAPIKey) { _ in
+                        .onChange(of: viewModel.redmineAPIKey) {
                             viewModel.clearRedmineCache()
                         }
                 }

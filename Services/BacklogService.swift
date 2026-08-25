@@ -57,7 +57,9 @@ actor BacklogService {
 
     func fetchMyIssues() async throws -> [BacklogIssue] {
         guard !host.isEmpty, !apiKey.isEmpty else {
-            print("❌ [BacklogService] Invalid configuration: host=\(host.isEmpty ? "empty" : "set"), apiKey=\(apiKey.isEmpty ? "empty" : "set")")
+            print(
+                "❌ [BacklogService] Invalid configuration: host=\(host.isEmpty ? "empty" : "set"), apiKey=\(apiKey.isEmpty ? "empty" : "set")"
+            )
             throw BacklogError.invalidConfiguration
         }
 
@@ -69,7 +71,7 @@ actor BacklogService {
         components.queryItems = [
             URLQueryItem(name: "apiKey", value: apiKey),
             URLQueryItem(name: "assigneeId[]", value: String(myself.id)),
-            URLQueryItem(name: "count", value: "100")
+            URLQueryItem(name: "count", value: "100"),
         ]
 
         guard let url = components.url else {
@@ -79,43 +81,13 @@ actor BacklogService {
 
         print("🌐 [BacklogService] Request URL: \(url.absoluteString.replacingOccurrences(of: apiKey, with: "***"))")
 
-        do {
-            let (data, response) = try await URLSession.shared.data(from: url)
+        let allIssues: [BacklogIssue] = try await fetch(url, operation: "Fetch issues")
+        let openIssues = allIssues.filter { $0.status?.id != 4 }
 
-            guard let httpResponse = response as? HTTPURLResponse else {
-                print("❌ [BacklogService] Invalid response")
-                throw BacklogError.invalidResponse
-            }
-
-            print("📡 [BacklogService] HTTP status code: \(httpResponse.statusCode)")
-
-            if httpResponse.statusCode != 200 {
-                let responseString = String(data: data, encoding: .utf8) ?? "Unable to parse"
-                print("❌ [BacklogService] Error response: \(responseString)")
-                if let errorResponse = try? JSONDecoder().decode(BacklogAPIError.self, from: data) {
-                    throw BacklogError.apiError(errorResponse.errors.first?.message ?? "未知错误")
-                }
-                throw BacklogError.apiError("HTTP \(httpResponse.statusCode)")
-            }
-
-            let decoder = JSONDecoder()
-            let allIssues = try decoder.decode([BacklogIssue].self, from: data)
-
-            // Filter out closed issues (status id 4 = closed)
-            let openIssues = allIssues.filter { issue in
-                guard let status = issue.status else { return true }
-                return status.id != 4
-            }
-
-            print("✅ [BacklogService] Successfully fetched \(allIssues.count) issues, \(openIssues.count) open issues (filtered out \(allIssues.count - openIssues.count) closed)")
-            return openIssues
-        } catch let error as BacklogError {
-            throw error
-        } catch let error as DecodingError {
-            throw BacklogError.decodingError(error)
-        } catch {
-            throw BacklogError.networkError(error)
-        }
+        print(
+            "✅ [BacklogService] Successfully fetched \(allIssues.count) issues, \(openIssues.count) open issues (filtered out \(allIssues.count - openIssues.count) closed)"
+        )
+        return openIssues
     }
 
     private func fetchMyself() async throws -> BacklogUser {
@@ -127,28 +99,31 @@ actor BacklogService {
             throw BacklogError.invalidURL
         }
 
+        return try await fetch(url, operation: "Fetch current user")
+    }
+
+    private func fetch<Response: Decodable>(_ url: URL, operation: String) async throws -> Response {
         do {
             let (data, response) = try await URLSession.shared.data(from: url)
 
             guard let httpResponse = response as? HTTPURLResponse else {
-                print("❌ [BacklogService] fetchMyself invalid response")
+                print("❌ [BacklogService] \(operation): invalid response")
                 throw BacklogError.invalidResponse
             }
 
-            print("📡 [BacklogService] fetchMyself HTTP status code: \(httpResponse.statusCode)")
+            print("📡 [BacklogService] \(operation) HTTP status code: \(httpResponse.statusCode)")
 
-            if httpResponse.statusCode != 200 {
+            guard httpResponse.statusCode == 200 else {
                 let responseString = String(data: data, encoding: .utf8) ?? "Unable to parse"
-                print("❌ [BacklogService] fetchMyself error response: \(responseString)")
+                print("❌ [BacklogService] \(operation) error response: \(responseString)")
+
                 if let errorResponse = try? JSONDecoder().decode(BacklogAPIError.self, from: data) {
                     throw BacklogError.apiError(errorResponse.errors.first?.message ?? "未知错误")
                 }
                 throw BacklogError.apiError("HTTP \(httpResponse.statusCode)")
             }
 
-            let decoder = JSONDecoder()
-            let user = try decoder.decode(BacklogUser.self, from: data)
-            return user
+            return try JSONDecoder().decode(Response.self, from: data)
         } catch let error as BacklogError {
             throw error
         } catch let error as DecodingError {

@@ -1,0 +1,79 @@
+# AGENTS.md
+
+This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
+
+## Build and Run
+
+This is a native macOS SwiftUI application. Open `Glance.xcodeproj` in Xcode to build and run.
+
+- **Build**: Cmd+B in Xcode, or `xcodebuild -project Glance.xcodeproj -scheme Glance build`
+- **Run**: Cmd+R in Xcode
+- **Target**: macOS 13.0+, supports both Apple Silicon and Intel
+
+## Architecture
+
+Glance is a Mac productivity app that fetches Backlog issues and calendar events, generates prioritized todo lists (sorted locally by priority/due dates), and uses AI to match completed tasks to Redmine projects for time entry submission. Optionally sends daily work reports via email.
+
+### Core Data Flow
+
+```
+User clicks "获取票据并生成待办"
+    → AppViewModel.fetchAndGenerateTodos()
+        → BacklogService.fetchMyIssues()
+        → CalendarService.fetchEvents() (if enabled)
+        → convertIssuesToTodos() - local sorting by priority/due dates (no AI)
+        → mergeTodoItems() - preserves custom todos and completion states
+```
+
+### Time Entry Generation Flow
+
+```
+User clicks "生成工时记录"
+    → AppViewModel.generateTimeEntriesForCompletedTodos()
+        → RedmineService.fetchProjects/Trackers/Activities()
+        → AIService.matchProjectsTrackersAndActivities() - matches todos to Redmine entities
+        → AIService.matchIssue() - for each todo, finds best matching issue
+        → Creates PendingTimeEntry objects for review before submission
+```
+
+### Key Components
+
+- **AppViewModel** (`ViewModels/AppViewModel.swift`): Central state manager using `@MainActor`. Singleton pattern (`shared`). Handles:
+  - API configuration persistence (UserDefaults + Keychain)
+  - Todo CRUD with automatic persistence
+  - Orchestrates fetch→generate flows for both todos and time entries
+  - Navigation state (`NavigationDestination`)
+
+- **BacklogService** (`Services/BacklogService.swift`): Actor for Backlog API. Extracts host from full URL, fetches current user via `/users/myself`, then fetches assigned issues with status filters.
+
+- **AIService** (`Services/AIService.swift`): Actor for DeepSeek/OpenAI-compatible API. Used for Redmine time entry matching:
+  - `matchProjectsTrackersAndActivities()` / `matchIssue()` - matches todos to Redmine entities for time entry generation
+  - Note: Todo list generation no longer uses AI - sorting is done locally by priority and due dates
+
+- **RedmineService** (`Services/RedmineService.swift`): Actor for Redmine REST API. Fetches projects, trackers, activities, issues, and submits time entries.
+
+- **CalendarService** (`Services/CalendarService.swift`): Actor wrapping EventKit. Handles macOS 13/14+ authorization differences (`requestAccess` vs `requestFullAccessToEvents`).
+
+- **EmailService** (`Services/EmailService.swift`): Actor for native SMTP. Sends HTML-formatted daily work reports with SSL/TLS support.
+
+- **TodoItem** (`Models/TodoItem.swift`): Three sources via `TodoSource` enum:
+  - `.backlog` - with issueKey, issueURL, priority, dates, milestones
+  - `.calendar` - with eventId, start/end times, location
+  - `.custom` - user-created
+
+### Storage
+
+- **UserDefaults**: Backlog URL, Redmine URL, AI base URL, selected model, calendar settings, email settings, todo items (JSON encoded), pending time entries (JSON encoded)
+- **Keychain**: API keys stored via `KeychainHelper` (service: `com.glance.app`) - keys for Backlog, OpenAI, Redmine, and email password
+
+### UI Structure
+
+- NavigationSplitView with sidebar containing navigation to todos or time entry views
+- Settings presented as sheet
+- Two main destinations: `.todos` (MainView) and `.timeEntry` (RedmineTimeEntryView)
+
+## Code Style
+
+- **Comments must be in English only**
+- Services use Swift `actor` for thread safety
+- AppViewModel uses `@MainActor` for UI-safe state updates
