@@ -602,8 +602,6 @@ struct TodoItemRow: View {
         switch item.source {
         case .backlog:
             return "来自 \(item.issueKey ?? "")"
-        case .calendar:
-            return "来自日历"
         case .custom:
             return "自定义待办"
         }
@@ -690,9 +688,9 @@ struct TodoItemRow: View {
                 .opacity(isHovering ? 1 : 0)
             }
 
-            // Second row: issueKey + priority + dates OR calendar time + location
+            // Second row: issue key, priority, dates, and actual hours
             HStack(alignment: .center, spacing: 8) {
-                // Issue key/Calendar badge
+                // Issue key/source badge
                 issueKeyBadge
 
                 // Priority badge (Backlog only) with dot indicator
@@ -735,25 +733,6 @@ struct TodoItemRow: View {
                         .foregroundStyle(Color(.secondaryLabelColor))
                 }
 
-                // Time and location info (Calendar)
-                if item.source == .calendar {
-                    if let startTime = item.eventStartTime, let endTime = item.eventEndTime {
-                        Text("\(formatTime(startTime))-\(formatTime(endTime))")
-                            .font(.caption)
-                            .foregroundStyle(Color(.secondaryLabelColor))
-                    }
-
-                    if let location = item.eventLocation, !location.isEmpty {
-                        HStack(spacing: 2) {
-                            Image(systemName: "location.fill")
-                                .font(.caption2)
-                            Text(location)
-                                .font(.caption)
-                        }
-                        .foregroundStyle(Color(.secondaryLabelColor))
-                    }
-                }
-
                 // Actual hours badge (if completed and has hours)
                 if item.isCompleted, let hours = item.actualHours {
                     HStack(spacing: 2) {
@@ -794,14 +773,6 @@ struct TodoItemRow: View {
                 .help("在浏览器中打开票据")
                 .accessibilityLabel("打开票据 \(issueKey)")
             }
-        case .calendar:
-            Text("日历")
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundStyle(.orange)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(Color.orange.opacity(0.2), in: RoundedRectangle(cornerRadius: 4))
         case .custom:
             Text("自定义")
                 .font(.caption)
@@ -860,12 +831,6 @@ struct TodoItemRow: View {
         let outputFormatter = DateFormatter()
         outputFormatter.dateFormat = "yyyy/MM/dd"
         return outputFormatter.string(from: date)
-    }
-
-    private func formatTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        return formatter.string(from: date)
     }
 
     private func dueDateColor(_ dateString: String) -> Color {

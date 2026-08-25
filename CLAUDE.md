@@ -12,7 +12,7 @@ This is a native macOS SwiftUI application. Open `Glance.xcodeproj` in Xcode to 
 
 ## Architecture
 
-Glance is a Mac productivity app that fetches Backlog issues and calendar events, generates prioritized todo lists (sorted locally by priority/due dates), and uses AI to match completed tasks to Redmine projects for time entry submission. Optionally sends daily work reports via email.
+Glance is a Mac productivity app that fetches Backlog issues, generates prioritized todo lists (sorted locally by priority/due dates), and uses AI to match completed tasks to Redmine projects for time entry submission. Optionally sends daily work reports via email.
 
 ### Core Data Flow
 
@@ -20,7 +20,6 @@ Glance is a Mac productivity app that fetches Backlog issues and calendar events
 User clicks "获取票据并生成待办"
     → AppViewModel.fetchAndGenerateTodos()
         → BacklogService.fetchMyIssues()
-        → CalendarService.fetchEvents() (if enabled)
         → convertIssuesToTodos() - local sorting by priority/due dates (no AI)
         → mergeTodoItems() - preserves custom todos and completion states
 ```
@@ -52,18 +51,15 @@ User clicks "生成工时记录"
 
 - **RedmineService** (`Services/RedmineService.swift`): Actor for Redmine REST API. Fetches projects, trackers, activities, issues, and submits time entries.
 
-- **CalendarService** (`Services/CalendarService.swift`): Actor wrapping EventKit. Handles macOS 13/14+ authorization differences (`requestAccess` vs `requestFullAccessToEvents`).
-
 - **EmailService** (`Services/EmailService.swift`): Actor for native SMTP. Sends HTML-formatted daily work reports with SSL/TLS support.
 
-- **TodoItem** (`Models/TodoItem.swift`): Three sources via `TodoSource` enum:
+- **TodoItem** (`Models/TodoItem.swift`): Two sources via `TodoSource` enum:
   - `.backlog` - with issueKey, issueURL, priority, dates, milestones
-  - `.calendar` - with eventId, start/end times, location
   - `.custom` - user-created
 
 ### Storage
 
-- **UserDefaults**: Backlog URL, Redmine URL, AI base URL, selected model, calendar settings, email settings, todo items (JSON encoded), pending time entries (JSON encoded)
+- **UserDefaults**: Backlog URL, Redmine URL, AI base URL, selected model, email settings, todo items (JSON encoded), pending time entries (JSON encoded)
 - **Keychain**: API keys stored via `KeychainHelper` (service: `com.glance.app`) - keys for Backlog, OpenAI, Redmine, and email password
 
 ### UI Structure

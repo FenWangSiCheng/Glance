@@ -1,6 +1,6 @@
 # Glance
 
-A lightweight macOS productivity app that intelligently transforms Backlog issues and calendar events into actionable todo lists using AI, with built-in Redmine time tracking integration.
+A lightweight macOS productivity app that transforms Backlog issues into actionable todo lists, with built-in Redmine time tracking integration.
 
 ![macOS](https://img.shields.io/badge/macOS-13.0+-blue)
 ![Swift](https://img.shields.io/badge/Swift-5.9-orange)
@@ -10,7 +10,6 @@ A lightweight macOS productivity app that intelligently transforms Backlog issue
 
 ### 🎯 Smart Task Management
 - **One-Click Sync**: Automatically fetch your assigned Backlog issues
-- **Calendar Integration**: Sync events from WeChat Work, DingTalk, and other calendar apps
 - **AI-Powered Generation**: Intelligently prioritize tasks based on deadlines and importance
 - **Persistent Storage**: Todos are saved locally and preserved across sessions
 - **Hours Tracking**: Record actual hours spent on each completed todo
@@ -34,12 +33,6 @@ A lightweight macOS productivity app that intelligently transforms Backlog issue
 - **Activity Detection**: Intelligently infer activity types (development, testing, meeting, etc.)
 - **Bulk Operations**: Submit multiple time entries at once
 - **Issue Linking**: Optional linking to specific Redmine issues
-
-### 📅 Calendar Support
-- Read events from multiple calendars
-- Configurable look-ahead period (1-30 days)
-- Automatic event-to-todo conversion
-- Preserves completion status across syncs
 
 ### 📧 Email Reporting
 - **Work Summary**: Send daily work reports via email
@@ -133,19 +126,11 @@ With Redmine configured, you can:
 
 With Email configured, you can send daily work summaries directly from the app.
 
-### 5. Enable Calendar (Optional)
-1. In Settings, navigate to the **Calendar** tab
-2. Enable "Calendar Integration"
-3. Grant calendar access when prompted by macOS
-4. Select which calendars to sync
-5. Set look-ahead period (default: 7 days)
-6. Save your settings
-
 ## Usage
 
 ### Basic Workflow
 1. **Sync Tasks**: Click the "同步" (Sync) button in the toolbar
-2. **AI Processing**: The app automatically fetches Backlog issues and calendar events
+2. **Task Processing**: The app automatically fetches and prioritizes Backlog issues
 3. **Review Todos**: Check the generated todo list in the main view
 4. **Track Hours**: When completing a todo, enter actual hours spent
 5. **Generate Time Entries**: Click "生成工时" (Generate Time Entries) to create Redmine time entries
@@ -161,9 +146,8 @@ With Email configured, you can send daily work summaries directly from the app.
 - **Open in Browser**: Click the issue key badge or the open link icon (Backlog todos only)
 
 #### Todo Sources
-Glance manages three types of todos:
+Glance manages two types of todos:
 - **📋 Backlog Tasks**: Generated from Backlog issues with issue key, priority, and due date
-- **📅 Calendar Events**: Synced from your calendars with time and location
 - **✏️ Custom Tasks**: Manually added by you
 
 ### Redmine Time Entry Workflow
@@ -199,14 +183,12 @@ Glance/
 ├── GlanceApp.swift                   # App entry point
 ├── Models/
 │   ├── BacklogIssue.swift            # Backlog issue data model
-│   ├── CalendarEvent.swift           # Calendar event data model
 │   ├── TodoItem.swift                # Todo item with source tracking and hours
 │   ├── RedmineModels.swift           # Redmine project, issue, activity, time entry models
 │   └── EmailModels.swift             # Email configuration models
 ├── Services/
 │   ├── AIService.swift               # AI integration with project/issue matching
 │   ├── BacklogService.swift          # Backlog API client
-│   ├── CalendarService.swift         # macOS Calendar integration
 │   ├── RedmineService.swift          # Redmine API client with time entry submission
 │   └── EmailService.swift            # Native SMTP email service
 ├── ViewModels/
@@ -214,7 +196,7 @@ Glance/
 ├── Views/
 │   ├── MainView.swift                # Main todo list interface with hours input
 │   ├── RedmineTimeEntryView.swift    # Redmine time entry management
-│   └── SettingsView.swift            # Multi-tab settings (Backlog, AI, Redmine, Email, Calendar)
+│   └── SettingsView.swift            # Multi-tab settings (Backlog, AI, Redmine, Email)
 └── Utils/
     └── KeychainHelper.swift          # Secure API key storage
 ```
@@ -223,10 +205,7 @@ Glance/
 
 ### Data Flow
 ```
-Backlog API ─┐
-             ├─> BacklogService ──┐
-Calendar    ─┤                    │
-             └─> CalendarService ─┤
+Backlog API ──> BacklogService ──┐
                                   │
                                   ├─> AppViewModel ─> Views (MainView, RedmineTimeEntryView)
                                   │        │
@@ -252,9 +231,6 @@ Redmine API <────────────────────┤    
 - **BacklogService**: Handles Backlog API communication
   - Fetch assigned issues
   - Issue metadata retrieval
-- **CalendarService**: Integrates with macOS EventKit
-  - Read calendar events
-  - Multi-calendar support
 - **RedmineService**: Redmine API client
   - Fetch projects, issues, and activities
   - Submit time entries
@@ -272,7 +248,7 @@ Redmine API <────────────────────┤    
 
 ## Configuration Files
 
-- **Info.plist**: Calendar permission descriptions
+- **Info.plist**: App metadata
 - **Glance.entitlements**: App sandbox and permissions
 - **project.pbxproj**: Xcode project configuration
 
@@ -330,15 +306,6 @@ Redmine API <────────────────────┤    
 - **Supported Providers**: Gmail, Outlook, custom SMTP servers
 - **Default Ports**: 465 (SSL), 587 (TLS)
 
-### Calendar (EventKit)
-- **Features**:
-  - Full calendar access on macOS 14+
-  - Multi-calendar support
-  - Configurable date range (1-30 days)
-  - Event metadata preservation (time, location)
-  - All-day event support
-- **Permissions**: Requires calendar access permission from user
-
 ## Tips and Best Practices
 
 ### For Accurate Time Tracking
@@ -364,7 +331,7 @@ Redmine API <────────────────────┤    
 2. **Throughout the day**: Complete todos and track hours as you work
 3. **End of day**: Generate and submit time entries to Redmine
 4. **Send report**: Email work summary to team or manager
-5. **Next day**: Sync again for new issues and calendar events
+5. **Next day**: Sync again for new issues
 
 ## Development
 
@@ -410,13 +377,6 @@ xcodebuild -project Glance.xcodeproj -scheme Glance -configuration Release
   - Log time entries
 - Use the "Test Connection" button in Settings to verify
 
-### Calendar Not Syncing
-- Grant calendar permissions in System Settings
-- Go to: System Settings → Privacy & Security → Calendars
-- Add Glance to allowed apps
-- Restart the app after granting permissions
-- Ensure selected calendars have events in the configured date range
-
 ### AI Generation Fails
 - Verify API key is correct
 - Check API endpoint URL (include full URL with protocol)
@@ -449,7 +409,6 @@ xcodebuild -project Glance.xcodeproj -scheme Glance -configuration Release
 ### Completed ✅
 - [x] Basic todo management
 - [x] Backlog integration
-- [x] Calendar integration
 - [x] AI-powered todo generation
 - [x] Redmine integration with time tracking
 - [x] AI-powered project and activity matching
@@ -492,7 +451,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Moonshot AI](https://www.moonshot.cn/) for Kimi's excellent Chinese language support
 - [OpenAI](https://openai.com/) for GPT models and the OpenAI API standard
 - [Anthropic](https://www.anthropic.com/) for Claude models
-- Apple's SwiftUI, EventKit, and Network frameworks
+- Apple's SwiftUI and Network frameworks
 
 ## Contact
 
@@ -502,4 +461,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 Made with ❤️ for productive developers
-

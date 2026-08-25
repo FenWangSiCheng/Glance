@@ -3,7 +3,6 @@ import Foundation
 enum TodoSource: String, Codable, Hashable, Sendable {
     case backlog
     case custom
-    case calendar
 }
 
 struct TodoItem: Identifiable, Codable, Hashable, Sendable {
@@ -19,10 +18,6 @@ struct TodoItem: Identifiable, Codable, Hashable, Sendable {
     let dueDate: String?
     let milestoneNames: [String]?
     let description: String?
-    let eventId: String?
-    let eventStartTime: Date?
-    let eventEndTime: Date?
-    let eventLocation: String?
 
     init(
         id: UUID = UUID(),
@@ -36,11 +31,7 @@ struct TodoItem: Identifiable, Codable, Hashable, Sendable {
         startDate: String? = nil,
         dueDate: String? = nil,
         milestoneNames: [String]? = nil,
-        description: String? = nil,
-        eventId: String? = nil,
-        eventStartTime: Date? = nil,
-        eventEndTime: Date? = nil,
-        eventLocation: String? = nil
+        description: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -54,10 +45,6 @@ struct TodoItem: Identifiable, Codable, Hashable, Sendable {
         self.dueDate = dueDate
         self.milestoneNames = milestoneNames
         self.description = description
-        self.eventId = eventId
-        self.eventStartTime = eventStartTime
-        self.eventEndTime = eventEndTime
-        self.eventLocation = eventLocation
     }
 
     static func backlog(
@@ -85,22 +72,5 @@ struct TodoItem: Identifiable, Codable, Hashable, Sendable {
 
     static func custom(title: String) -> TodoItem {
         TodoItem(title: title, source: .custom)
-    }
-
-    static func calendar(
-        title: String,
-        eventId: String,
-        startTime: Date,
-        endTime: Date,
-        location: String? = nil
-    ) -> TodoItem {
-        TodoItem(
-            title: title,
-            source: .calendar,
-            eventId: eventId,
-            eventStartTime: startTime,
-            eventEndTime: endTime,
-            eventLocation: location
-        )
     }
 }

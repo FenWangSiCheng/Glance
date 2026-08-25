@@ -3,7 +3,6 @@ import SwiftUI
 // MARK: - Settings Tab
 enum SettingsTab: String, CaseIterable, Identifiable {
     case backlog = "Backlog"
-    case calendar = "日历"
     case ai = "AI 模型"
     case redmine = "Redmine"
     case email = "邮件"
@@ -13,7 +12,6 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .backlog: return "tray.full.fill"
-        case .calendar: return "calendar"
         case .ai: return "cpu.fill"
         case .redmine: return "clock.fill"
         case .email: return "envelope.fill"
@@ -23,7 +21,6 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     var accessibilityLabel: String {
         switch self {
         case .backlog: return "Backlog 连接设置"
-        case .calendar: return "日历同步设置"
         case .ai: return "AI 模型设置"
         case .redmine: return "Redmine 工时设置"
         case .email: return "邮件日报设置"
@@ -51,13 +48,6 @@ struct SettingsView: View {
                     }
                     .tag(SettingsTab.backlog)
                     .accessibilityLabel(SettingsTab.backlog.accessibilityLabel)
-
-                CalendarSettingsTab(viewModel: viewModel)
-                    .tabItem {
-                        Label("日历", systemImage: "calendar")
-                    }
-                    .tag(SettingsTab.calendar)
-                    .accessibilityLabel(SettingsTab.calendar.accessibilityLabel)
 
                 AISettingsTab(viewModel: viewModel)
                     .tabItem {
@@ -493,175 +483,6 @@ struct AISettingsTab: View {
                     testResult = result
                 }
                 isTesting = false
-            }
-        }
-    }
-}
-
-// MARK: - Calendar Settings Tab
-struct CalendarSettingsTab: View {
-    @ObservedObject var viewModel: AppViewModel
-    @State private var availableCalendars: [String: String] = [:]
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private var standardAnimation: Animation? {
-        reduceMotion ? nil : .spring(response: 0.3)
-    }
-
-    var body: some View {
-        Form {
-            Section {
-                Toggle("启用日历同步", isOn: $viewModel.calendarEnabled)
-                    .accessibilityLabel("启用日历同步")
-                    .accessibilityHint("开启后将同步系统日历事件到待办列表")
-                    .onChange(of: viewModel.calendarEnabled) { _, newValue in
-                        if newValue && !viewModel.calendarAccessGranted {
-                            Task {
-                                await viewModel.requestCalendarAccess()
-                                if viewModel.calendarAccessGranted {
-                                    loadCalendars()
-                                }
-                            }
-                        }
-                    }
-
-                if viewModel.calendarEnabled {
-                    if viewModel.calendarAccessGranted {
-                        // Calendar selection
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("选择日历")
-                                .font(.subheadline)
-                                .foregroundStyle(Color(.secondaryLabelColor))
-
-                            if availableCalendars.isEmpty {
-                                Text("未找到可用日历")
-                                    .font(.caption)
-                                    .foregroundStyle(Color(.tertiaryLabelColor))
-                            } else {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    ForEach(Array(availableCalendars.keys.sorted()), id: \.self) { calendarId in
-                                        Toggle(
-                                            availableCalendars[calendarId] ?? calendarId,
-                                            isOn: Binding(
-                                                get: { viewModel.selectedCalendarIds.contains(calendarId) },
-                                                set: { isSelected in
-                                                    if isSelected {
-                                                        if !viewModel.selectedCalendarIds.contains(calendarId) {
-                                                            viewModel.selectedCalendarIds.append(calendarId)
-                                                        }
-                                                    } else {
-                                                        viewModel.selectedCalendarIds.removeAll { $0 == calendarId }
-                                                    }
-                                                }
-                                            )
-                                        )
-                                        .accessibilityLabel("日历: \(availableCalendars[calendarId] ?? calendarId)")
-                                    }
-                                }
-                            }
-
-                            Text("不选择任何日历将同步所有日历的今天事件")
-                                .font(.caption)
-                                .foregroundStyle(Color(.tertiaryLabelColor))
-                        }
-                    } else {
-                        // Permission request
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundStyle(Color(.systemOrange))
-                                    .accessibilityHidden(true)
-                                Text("需要日历访问权限")
-                                    .font(.subheadline)
-                                    .foregroundStyle(Color(.labelColor))
-                            }
-
-                            Text("Glance 需要访问您的日历以获取企业微信等应用同步的日程")
-                                .font(.caption)
-                                .foregroundStyle(Color(.secondaryLabelColor))
-
-                            HStack(spacing: 12) {
-                                Button {
-                                    Task {
-                                        await viewModel.requestCalendarAccess()
-                                        if viewModel.calendarAccessGranted {
-                                            loadCalendars()
-                                        }
-                                    }
-                                } label: {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "lock.open.fill")
-                                            .accessibilityHidden(true)
-                                        Text("授权访问日历")
-                                    }
-                                    .frame(minHeight: 32)
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .accessibilityLabel("授权访问日历")
-                                .accessibilityHint("点击以请求日历访问权限")
-
-                                Button {
-                                    viewModel.openSystemPrivacySettings()
-                                } label: {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "gearshape.fill")
-                                            .accessibilityHidden(true)
-                                        Text("打开系统设置")
-                                    }
-                                    .frame(minHeight: 32)
-                                }
-                                .buttonStyle(.bordered)
-                                .accessibilityLabel("打开系统设置")
-                                .accessibilityHint("在系统设置中手动授予日历权限")
-                            }
-                        }
-                    }
-                }
-            } header: {
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(Color.orange.opacity(0.15))
-                        .frame(width: 28, height: 28)
-                        .overlay(
-                            Image(systemName: "calendar")
-                                .font(.system(size: 12))
-                                .foregroundStyle(Color.orange)
-                        )
-
-                    Text("日历同步配置")
-                        .font(.headline)
-                        .foregroundStyle(Color(.labelColor))
-                }
-                .padding(.bottom, 8)
-                .accessibilityElement(children: .combine)
-                .accessibilityAddTraits(.isHeader)
-            } footer: {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("开启后，将从系统日历中读取事件并添加到待办列表")
-                        .font(.caption)
-                        .foregroundStyle(Color(.secondaryLabelColor))
-
-                    Text("适用于企业微信、钉钉等应用同步到 Mac 日历的会议")
-                        .font(.caption)
-                        .foregroundStyle(Color(.tertiaryLabelColor))
-                }
-                .padding(.top, 8)
-            }
-        }
-        .formStyle(.grouped)
-        .onAppear {
-            if viewModel.calendarEnabled && viewModel.calendarAccessGranted {
-                loadCalendars()
-            }
-        }
-    }
-
-    private func loadCalendars() {
-        Task {
-            let service = CalendarService()
-            let calendars = await service.fetchCalendarInfo()
-            await MainActor.run {
-                availableCalendars = Dictionary(uniqueKeysWithValues: calendars.map { ($0.id, $0.title) })
             }
         }
     }
