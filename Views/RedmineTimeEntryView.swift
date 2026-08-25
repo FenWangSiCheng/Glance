@@ -55,8 +55,9 @@ struct RedmineTimeEntryView: View {
     }
 
     private var canAddEntry: Bool {
-        selectedProject != nil && selectedIssue != nil && selectedActivity != nil && !hours.isEmpty
-            && Double(hours) != nil && !comments.isEmpty
+        selectedProject != nil && selectedIssue != nil && selectedActivity != nil
+            && (Double(hours).map { $0 > 0 } ?? false)
+            && !comments.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {
@@ -233,9 +234,10 @@ struct RedmineTimeEntryView: View {
 
                 // Hours input
                 LabeledContent("工时(h)") {
-                    TextField("例如:2.5", text: $hours, )
+                    TextField("例如 2.5", text: $hours)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 120)
+                        .accessibilityLabel("工时（小时）")
 
                 }
 
@@ -315,44 +317,21 @@ struct RedmineTimeEntryView: View {
                     Button {
                         viewModel.syncAllEntriesToToday()
                     } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "calendar")
-                                .font(.caption)
-                                .accessibilityHidden(true)
-                            Text("同步到今天")
-                                .font(.caption)
-                        }
-                        .foregroundStyle(Color.orange)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(
-                            Capsule()
-                                .fill(Color.orange.opacity(0.1))
-                        )
+                        Label("同步到今天", systemImage: "calendar")
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
                     .accessibilityLabel("同步到今天")
                     .accessibilityHint("将所有待提交工时记录的日期更新为今天")
 
                     Button {
                         showingClearConfirmation = true
                     } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "trash")
-                                .font(.caption)
-                                .accessibilityHidden(true)
-                            Text("清空")
-                                .font(.caption)
-                        }
-                        .foregroundStyle(Color.red)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(
-                            Capsule()
-                                .fill(Color.red.opacity(0.1))
-                        )
+                        Label("清空", systemImage: "trash")
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
+                    .foregroundStyle(.red)
                     .accessibilityLabel("清空列表")
                     .accessibilityHint("删除所有待提交的工时记录")
                 }

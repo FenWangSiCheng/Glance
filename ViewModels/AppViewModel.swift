@@ -92,7 +92,6 @@ class AppViewModel: ObservableObject {
 
     @Published var isGeneratingTodos = false
     @Published var errorMessage: String?
-    @Published var showingSettings = false
     @Published var showingError = false
 
     static let availableModels = [

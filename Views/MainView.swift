@@ -13,9 +13,6 @@ struct MainView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 800, minHeight: 560)
-        .sheet(isPresented: $viewModel.showingSettings) {
-            SettingsView(viewModel: viewModel)
-        }
         .alert("错误", isPresented: $viewModel.showingError) {
             Button("确定", role: .cancel) {
                 viewModel.clearError()
@@ -39,163 +36,82 @@ struct MainView: View {
 // MARK: - Sidebar
 struct SidebarView: View {
     @ObservedObject var viewModel: AppViewModel
-    @State private var isHoveringSettings = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header with improved visual hierarchy
-            VStack(spacing: 8) {
-                HStack {
-                    Image(systemName: "sparkle")
-                        .font(.title2)
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [Color.blue, Color.blue.opacity(0.7)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .accessibilityHidden(true)
-
-                    Text("Glance")
-                        .font(.title2)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color(.labelColor))
-
-                    Spacer()
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 32)
-
-                Text("智能待办管理")
-                    .font(.caption)
-                    .foregroundStyle(Color(.secondaryLabelColor))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 16)
-            }
-            .padding(.bottom, 16)
-
-            Divider()
-                .padding(.horizontal, 16)
-
-            // Navigation List with card-based design
-            VStack(spacing: 8) {
-                NavigationRow(
-                    icon: "checklist",
+        List(selection: destinationSelection) {
+            Section("工作区") {
+                sidebarRow(
                     title: "待办清单",
-                    badge: viewModel.todoItems.isEmpty ? nil : "\(viewModel.todoItems.count)",
-                    isSelected: viewModel.selectedDestination == .todos
-                ) {
-                    viewModel.selectedDestination = .todos
-                }
+                    systemImage: "checklist",
+                    count: viewModel.todoItems.count
+                )
+                .tag(NavigationDestination.todos)
 
                 if viewModel.isRedmineConfigured {
-                    NavigationRow(
-                        icon: "clock.fill",
+                    sidebarRow(
                         title: "Redmine 工时",
-                        badge: viewModel.pendingTimeEntries.isEmpty
-                            ? nil : "\(viewModel.pendingTimeEntries.count)",
-                        badgeColor: Color.orange,
-                        isSelected: viewModel.selectedDestination == .timeEntry
-                    ) {
-                        viewModel.selectedDestination = .timeEntry
-                    }
+                        systemImage: "clock",
+                        count: viewModel.pendingTimeEntries.count
+                    )
+                    .tag(NavigationDestination.timeEntry)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.top, 16)
 
-            Spacer()
-
-            // Footer with improved design
-            sidebarFooter
+            Section("连接") {
+                if viewModel.isConfigured {
+                    Label("Backlog 已配置", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel("Backlog 连接已配置")
+                } else {
+                    Button(action: openSettingsWindow) {
+                        Label("完成 Backlog 配置", systemImage: "exclamationmark.triangle.fill")
+                    }
+                    .accessibilityHint("打开设置窗口")
+                }
+            }
         }
-        .navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 280)
+        .listStyle(.sidebar)
+        .navigationTitle("Glance")
+        .navigationSplitViewColumnWidth(min: 190, ideal: 220, max: 280)
         .toolbar {
             ToolbarItem(placement: .automatic) {
-                Button {
-                    viewModel.showingSettings = true
-                } label: {
-                    Image(systemName: isHoveringSettings ? "gearshape.fill" : "gearshape")
-                        .foregroundStyle(Color(.secondaryLabelColor))
-                        .accessibilityHidden(true)
+                Button(action: openSettingsWindow) {
+                    Label("设置", systemImage: "gearshape")
                 }
-                .buttonStyle(.plain)
-                .onHover { hovering in
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        isHoveringSettings = hovering
-                    }
-                }
-                .accessibilityLabel("打开设置")
-                .accessibilityHint("配置 Backlog 和 AI API")
+                .labelStyle(.iconOnly)
+                .accessibilityHint("配置 Backlog、Redmine、AI 和邮件")
                 .help("设置")
             }
         }
     }
 
-    private var sidebarFooter: some View {
-        VStack(spacing: 12) {
-            Divider()
-
-            if !viewModel.isConfigured {
-                configurationWarning
-            } else {
-                connectionStatus
+    private var destinationSelection: Binding<NavigationDestination?> {
+        Binding(
+            get: { viewModel.selectedDestination },
+            set: { destination in
+                if let destination {
+                    viewModel.selectedDestination = destination
+                }
             }
-        }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 12)
-    }
-
-    private var configurationWarning: some View {
-        Button {
-            viewModel.showingSettings = true
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(Color.orange)
-                    .accessibilityHidden(true)
-                Text("需要配置 API")
-                    .font(.caption)
-                    .foregroundStyle(Color(.labelColor))
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption2)
-                    .foregroundStyle(Color(.tertiaryLabelColor))
-                    .accessibilityHidden(true)
-            }
-            .padding(10)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.orange.opacity(0.15))
-            )
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("API 配置警告")
-        .accessibilityHint("点击打开设置以配置 API")
-        .frame(minHeight: 44)
-    }
-
-    private var connectionStatus: some View {
-        HStack(spacing: 6) {
-            // Use checkmark icon instead of plain circle for colorblind accessibility
-            Image(systemName: "checkmark.circle.fill")
-                .font(.caption)
-                .foregroundStyle(Color.green)
-                .accessibilityHidden(true)
-            Text("系统已就绪")
-                .font(.caption)
-                .foregroundStyle(Color(.secondaryLabelColor))
-            Spacer()
-        }
-        .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.green.opacity(0.1))
         )
+    }
+
+    private func sidebarRow(title: String, systemImage: String, count: Int) -> some View {
+        HStack {
+            Label(title, systemImage: systemImage)
+            Spacer()
+            if count > 0 {
+                Text(count, format: .number)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+        }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("连接状态：已连接")
+        .accessibilityLabel(count > 0 ? "\(title)，\(count) 项" : title)
+    }
+
+    private func openSettingsWindow() {
+        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
     }
 }
 
@@ -203,7 +119,6 @@ struct SidebarView: View {
 struct TodosDetailView: View {
     @ObservedObject var viewModel: AppViewModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var editingTodo: TodoItem?
     @State private var editingText: String = ""
     @State private var newTodoText: String = ""
@@ -225,6 +140,10 @@ struct TodosDetailView: View {
     var body: some View {
         VStack(spacing: 0) {
             addTodoBar
+
+            if viewModel.isGeneratingTodos || viewModel.isGeneratingTimeEntries {
+                operationStatus
+            }
 
             if viewModel.todoItems.isEmpty && newTodoText.isEmpty {
                 emptyState
@@ -254,8 +173,8 @@ struct TodosDetailView: View {
                 }
                 .disabled(!viewModel.isConfigured || viewModel.isGeneratingTodos)
                 .accessibilityLabel("同步票据")
-                .accessibilityHint("从 Backlog 获取票据并使用 AI 生成待办清单")
-                .help("同步票据并生成待办")
+                .accessibilityHint("从 Backlog 获取票据并更新待办清单")
+                .help("从 Backlog 同步待办")
             }
             ToolbarItem(placement: .automatic) {
                 Button {
@@ -336,13 +255,6 @@ struct TodosDetailView: View {
                 }
             )
         }
-        .overlay {
-            if viewModel.isGeneratingTodos {
-                generatingOverlay
-            } else if viewModel.isGeneratingTimeEntries {
-                timeEntryGeneratingOverlay
-            }
-        }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("待办清单视图")
     }
@@ -396,7 +308,7 @@ struct TodosDetailView: View {
         EmptyStateView(
             icon: "checklist",
             title: "暂无待办事项",
-            subtitle: "点击右上角「同步」按钮获取票据"
+            subtitle: "在上方输入新待办，或使用工具栏中的「同步」从 Backlog 获取票据"
         )
     }
 
@@ -435,85 +347,33 @@ struct TodosDetailView: View {
         .listStyle(.inset(alternatesRowBackgrounds: true))
     }
 
-    private var generatingOverlay: some View {
-        ZStack {
-            Color.black.opacity(reduceTransparency ? 0.5 : 0.3)
-                .ignoresSafeArea()
+    private var operationStatus: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .controlSize(.small)
+                .accessibilityHidden(true)
 
-            VStack(spacing: 20) {
-                ProgressView()
-                    .controlSize(.large)
-                    .tint(.blue)
-                    .accessibilityHidden(true)
+            Text(operationStatusText)
+                .font(.callout)
+                .foregroundStyle(.secondary)
 
-                VStack(spacing: 8) {
-                    Text("正在获取票据并生成待办...")
-                        .font(.headline)
-                        .foregroundStyle(Color(.labelColor))
-
-                    Text("请稍候")
-                        .font(.subheadline)
-                        .foregroundStyle(Color(.secondaryLabelColor))
-                }
-            }
-            .padding(40)
-            .background(
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(reduceTransparency ? Color(.windowBackgroundColor) : Color.clear)
-                    .background(.ultraThinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 20))
-            )
-            .shadow(
-                color: Color.black.opacity(0.15),
-                radius: 20,
-                x: 0,
-                y: 10
-            )
+            Spacer()
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(.quaternary.opacity(0.5))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("正在生成待办清单，请稍候")
+        .accessibilityLabel(operationStatusText)
         .accessibilityAddTraits(.updatesFrequently)
     }
 
-    private var timeEntryGeneratingOverlay: some View {
-        ZStack {
-            Color.black.opacity(reduceTransparency ? 0.5 : 0.3)
-                .ignoresSafeArea()
-
-            VStack(spacing: 20) {
-                ProgressView()
-                    .controlSize(.large)
-                    .tint(.blue)
-                    .accessibilityHidden(true)
-
-                VStack(spacing: 8) {
-                    Text("正在生成工时记录...")
-                        .font(.headline)
-                        .foregroundStyle(Color(.labelColor))
-
-                    Text(viewModel.generationProgress.isEmpty ? "请稍候" : viewModel.generationProgress)
-                        .font(.subheadline)
-                        .foregroundStyle(Color(.secondaryLabelColor))
-                        .multilineTextAlignment(.center)
-                }
-            }
-            .padding(40)
-            .background(
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(reduceTransparency ? Color(.windowBackgroundColor) : Color.clear)
-                    .background(.ultraThinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 20))
-            )
-            .shadow(
-                color: Color.black.opacity(0.15),
-                radius: 20,
-                x: 0,
-                y: 10
-            )
+    private var operationStatusText: String {
+        if viewModel.isGeneratingTodos {
+            return "正在从 Backlog 同步待办"
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("正在生成工时记录，\(viewModel.generationProgress)")
-        .accessibilityAddTraits(.updatesFrequently)
+        return viewModel.generationProgress.isEmpty
+            ? "正在生成工时记录"
+            : viewModel.generationProgress
     }
 }
 
@@ -529,39 +389,27 @@ struct TodoItemRow: View {
     let onSaveEdit: () -> Void
     let onCancelEdit: () -> Void
 
-    @State private var isHovering = false
-
     private var standardAnimation: Animation? {
         reduceMotion ? nil : .spring(response: 0.3)
     }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            // Checkbox with better design
             Button {
                 withAnimation(standardAnimation) {
                     onToggle()
                 }
             } label: {
-                ZStack {
-                    Circle()
-                        .strokeBorder(
-                            item.isCompleted ? Color.green : Color(.separatorColor),
-                            lineWidth: 2
-                        )
-                        .frame(width: 22, height: 22)
-
-                    if item.isCompleted {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(Color.green)
-                    }
-                }
-                .frame(width: 32, height: 32)
-                .contentShape(Circle())
+                Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(item.isCompleted ? Color.green : Color.secondary)
+                    .frame(minWidth: 28, minHeight: 28)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityHidden(true)
+            .accessibilityLabel(item.isCompleted ? "标记为未完成" : "完成待办")
+            .accessibilityHint(item.isCompleted ? "恢复此待办" : "输入实际工时并完成此待办")
 
             if isEditing {
                 editingContent
@@ -569,42 +417,8 @@ struct TodoItemRow: View {
                 normalContent
             }
         }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color(.controlBackgroundColor))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(
-                    isHovering ? Color.blue.opacity(0.3) : Color(.separatorColor).opacity(0.5),
-                    lineWidth: isHovering ? 1 : 0.5
-                )
-        )
-        .shadow(
-            color: Color.black.opacity(isHovering ? 0.08 : 0.04),
-            radius: isHovering ? 6 : 3,
-            x: 0,
-            y: isHovering ? 3 : 1
-        )
-        .animation(.easeInOut(duration: 0.2), value: isHovering)
-        .onHover { hovering in
-            isHovering = hovering
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(item.title)，\(sourceDescription)")
-        .accessibilityValue(item.isCompleted ? "已完成" : "未完成")
-        .accessibilityHint("双击切换完成状态")
-        .accessibilityAddTraits(item.isCompleted ? [.isSelected] : [])
-    }
-
-    private var sourceDescription: String {
-        switch item.source {
-        case .backlog:
-            return "来自 \(item.issueKey ?? "")"
-        case .custom:
-            return "自定义待办"
-        }
+        .padding(.vertical, 6)
+        .accessibilityElement(children: .contain)
     }
 
     private var editingContent: some View {
@@ -640,7 +454,6 @@ struct TodoItemRow: View {
 
                 Spacer()
 
-                // Actions - always reserve space, control visibility with opacity
                 HStack(spacing: 4) {
                     // Edit button
                     Button {
@@ -653,7 +466,7 @@ struct TodoItemRow: View {
                     }
                     .buttonStyle(.plain)
                     .help("编辑待办")
-                    .accessibilityLabel("编辑此待办事项")
+                    .accessibilityLabel("编辑 \(item.title)")
 
                     // Open link button (only for Backlog todos)
                     if item.source == .backlog, let issueURL = item.issueURL, let url = URL(string: issueURL) {
@@ -667,7 +480,7 @@ struct TodoItemRow: View {
                         }
                         .buttonStyle(.plain)
                         .help("在浏览器中打开")
-                        .accessibilityLabel("在浏览器中打开")
+                        .accessibilityLabel("在浏览器中打开 \(item.issueKey ?? item.title)")
                     }
 
                     // Delete button
@@ -683,9 +496,8 @@ struct TodoItemRow: View {
                     }
                     .buttonStyle(.plain)
                     .help("删除待办")
-                    .accessibilityLabel("删除此待办事项")
+                    .accessibilityLabel("删除 \(item.title)")
                 }
-                .opacity(isHovering ? 1 : 0)
             }
 
             // Second row: issue key, priority, dates, and actual hours
@@ -728,9 +540,9 @@ struct TodoItemRow: View {
 
                 // Due date (Backlog only)
                 if item.source == .backlog, let dueDate = item.dueDate {
-                    Text("截止: \(formatDate(dueDate))")
+                    Label(dueDateLabel(dueDate), systemImage: dueDateSystemImage(dueDate))
                         .font(.caption)
-                        .foregroundStyle(Color(.secondaryLabelColor))
+                        .foregroundStyle(dueDateColor(dueDate))
                 }
 
                 // Actual hours badge (if completed and has hours)
@@ -827,10 +639,33 @@ struct TodoItemRow: View {
 
     private func formatDate(_ dateString: String) -> String {
         guard let date = parseDate(dateString) else { return dateString }
+        return date.formatted(date: .abbreviated, time: .omitted)
+    }
 
-        let outputFormatter = DateFormatter()
-        outputFormatter.dateFormat = "yyyy/MM/dd"
-        return outputFormatter.string(from: date)
+    private func dueDateLabel(_ dateString: String) -> String {
+        guard let dueDate = parseDate(dateString) else {
+            return "截止：\(dateString)"
+        }
+
+        let today = Calendar.current.startOfDay(for: Date())
+        let due = Calendar.current.startOfDay(for: dueDate)
+        if due < today {
+            return "已逾期 · \(formatDate(dateString))"
+        }
+        if Calendar.current.dateComponents([.day], from: today, to: due).day ?? 0 <= 3 {
+            return "即将截止 · \(formatDate(dateString))"
+        }
+        return "截止：\(formatDate(dateString))"
+    }
+
+    private func dueDateSystemImage(_ dateString: String) -> String {
+        guard let dueDate = parseDate(dateString) else { return "calendar" }
+        let today = Calendar.current.startOfDay(for: Date())
+        let due = Calendar.current.startOfDay(for: dueDate)
+        let remainingDays = Calendar.current.dateComponents([.day], from: today, to: due).day ?? 0
+        return due < today || remainingDays <= 3
+            ? "calendar.badge.exclamationmark"
+            : "calendar"
     }
 
     private func dueDateColor(_ dateString: String) -> Color {
@@ -954,77 +789,5 @@ struct HoursInputSheet: View {
         .onAppear {
             isHoursInputFocused = true
         }
-    }
-}
-
-// MARK: - Navigation Row
-struct NavigationRow: View {
-    let icon: String
-    let title: String
-    var badge: String? = nil
-    var badgeColor: Color = Color.blue
-    let isSelected: Bool
-    let action: () -> Void
-
-    @State private var isHovering = false
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                // Icon with background
-                ZStack {
-                    Circle()
-                        .fill(isSelected ? Color.blue.opacity(0.2) : Color.clear)
-                        .frame(width: 32, height: 32)
-
-                    Image(systemName: icon)
-                        .font(.body)
-                        .foregroundStyle(isSelected ? Color.blue : Color(.secondaryLabelColor))
-                }
-                .accessibilityHidden(true)
-
-                Text(title)
-                    .font(.body)
-                    .fontWeight(isSelected ? .medium : .regular)
-                    .foregroundStyle(isSelected ? Color(.labelColor) : Color(.secondaryLabelColor))
-
-                Spacer()
-
-                // Badge
-                if let badge = badge {
-                    Text(badge)
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(badgeColor, in: Capsule())
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .frame(minHeight: 48)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(
-                        isSelected
-                            ? Color.blue.opacity(0.1)
-                            : (isHovering ? Color(.separatorColor).opacity(0.3) : Color.clear))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .strokeBorder(isSelected ? Color.blue.opacity(0.3) : Color.clear, lineWidth: 1.5)
-            )
-            .contentShape(RoundedRectangle(cornerRadius: 10))
-        }
-        .buttonStyle(.plain)
-        .animation(.easeInOut(duration: 0.2), value: isHovering)
-        .animation(.easeInOut(duration: 0.2), value: isSelected)
-        .onHover { hovering in
-            isHovering = hovering
-        }
-        .accessibilityLabel(title)
-        .accessibilityValue(badge.map { "\($0) 项" } ?? "")
-        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 }

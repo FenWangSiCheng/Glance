@@ -31,145 +31,42 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 // MARK: - Settings View
 struct SettingsView: View {
     @ObservedObject var viewModel: AppViewModel
-    @Environment(\.dismiss) private var dismiss
     @State private var selectedTab: SettingsTab = .backlog
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            headerView
-            Divider()
+        TabView(selection: $selectedTab) {
+            BacklogSettingsTab(viewModel: viewModel)
+                .tabItem {
+                    Label("Backlog", systemImage: "tray.full.fill")
+                }
+                .tag(SettingsTab.backlog)
+                .accessibilityLabel(SettingsTab.backlog.accessibilityLabel)
 
-            // Tab content
-            TabView(selection: $selectedTab) {
-                BacklogSettingsTab(viewModel: viewModel)
-                    .tabItem {
-                        Label("Backlog", systemImage: "tray.full.fill")
-                    }
-                    .tag(SettingsTab.backlog)
-                    .accessibilityLabel(SettingsTab.backlog.accessibilityLabel)
+            AISettingsTab(viewModel: viewModel)
+                .tabItem {
+                    Label("AI 模型", systemImage: "cpu.fill")
+                }
+                .tag(SettingsTab.ai)
+                .accessibilityLabel(SettingsTab.ai.accessibilityLabel)
 
-                AISettingsTab(viewModel: viewModel)
-                    .tabItem {
-                        Label("AI 模型", systemImage: "cpu.fill")
-                    }
-                    .tag(SettingsTab.ai)
-                    .accessibilityLabel(SettingsTab.ai.accessibilityLabel)
+            RedmineSettingsTab(viewModel: viewModel)
+                .tabItem {
+                    Label("Redmine", systemImage: "clock.fill")
+                }
+                .tag(SettingsTab.redmine)
+                .accessibilityLabel(SettingsTab.redmine.accessibilityLabel)
 
-                RedmineSettingsTab(viewModel: viewModel)
-                    .tabItem {
-                        Label("Redmine", systemImage: "clock.fill")
-                    }
-                    .tag(SettingsTab.redmine)
-                    .accessibilityLabel(SettingsTab.redmine.accessibilityLabel)
-
-                EmailSettingsTab(viewModel: viewModel)
-                    .tabItem {
-                        Label("邮件", systemImage: "envelope.fill")
-                    }
-                    .tag(SettingsTab.email)
-                    .accessibilityLabel(SettingsTab.email.accessibilityLabel)
-            }
-            .padding(20)
-
-            Divider()
-
-            // Footer
-            footerView
+            EmailSettingsTab(viewModel: viewModel)
+                .tabItem {
+                    Label("邮件", systemImage: "envelope.fill")
+                }
+                .tag(SettingsTab.email)
+                .accessibilityLabel(SettingsTab.email.accessibilityLabel)
         }
-        .frame(width: 520, height: 480)
-        .onExitCommand {
-            dismiss()
-        }
+        .padding(20)
+        .frame(width: 560, height: 480)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("设置窗口")
-    }
-
-    private var headerView: some View {
-        HStack(spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.blue, Color.blue.opacity(0.7)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 36, height: 36)
-
-                Image(systemName: "gearshape.fill")
-                    .font(.system(size: 18))
-                    .foregroundStyle(.white)
-            }
-            .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("设置")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundStyle(Color(.labelColor))
-
-                Text("配置应用连接和偏好")
-                    .font(.caption)
-                    .foregroundStyle(Color(.secondaryLabelColor))
-            }
-
-            Spacer()
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 16)
-        .background(Color(.controlBackgroundColor))
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("设置")
-        .accessibilityAddTraits(.isHeader)
-    }
-
-    private var footerView: some View {
-        HStack {
-            // Configuration status with better design
-            HStack(spacing: 8) {
-                if viewModel.isConfigured {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.subheadline)
-                        .foregroundStyle(Color.green)
-                        .accessibilityHidden(true)
-                    Text("配置完成")
-                        .font(.subheadline)
-                        .foregroundStyle(Color(.labelColor))
-                } else {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.subheadline)
-                        .foregroundStyle(Color.orange)
-                        .accessibilityHidden(true)
-                    Text("请完成配置")
-                        .font(.subheadline)
-                        .foregroundStyle(Color(.labelColor))
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(
-                Capsule()
-                    .fill(viewModel.isConfigured ? Color.green.opacity(0.1) : Color.orange.opacity(0.1))
-            )
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(viewModel.isConfigured ? "配置状态：已完成" : "配置状态：请完成配置")
-
-            Spacer()
-
-            Button("完成") {
-                dismiss()
-            }
-            .keyboardShortcut(.return, modifiers: [])
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .accessibilityLabel("完成设置")
-            .accessibilityHint("关闭设置窗口")
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 16)
-        .background(Color(.controlBackgroundColor))
     }
 }
 
@@ -207,20 +104,8 @@ struct BacklogSettingsTab: View {
                         .accessibilityHint("输入从 Backlog 获取的 API 密钥")
                 }
             } header: {
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(Color.blue.opacity(0.15))
-                        .frame(width: 28, height: 28)
-                        .overlay(
-                            Image(systemName: "tray.full.fill")
-                                .font(.system(size: 12))
-                                .foregroundStyle(Color.blue)
-                        )
-
-                    Text("Backlog 连接配置")
-                        .font(.headline)
-                        .foregroundStyle(Color(.labelColor))
-                }
+                Label("Backlog 连接", systemImage: "tray.full")
+                    .font(.headline)
                 .padding(.bottom, 8)
                 .accessibilityElement(children: .combine)
                 .accessibilityAddTraits(.isHeader)
@@ -399,20 +284,8 @@ struct AISettingsTab: View {
                     }
                 }
             } header: {
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(Color.blue.opacity(0.15))
-                        .frame(width: 28, height: 28)
-                        .overlay(
-                            Image(systemName: "cpu.fill")
-                                .font(.system(size: 12))
-                                .foregroundStyle(Color.blue)
-                        )
-
-                    Text("AI 模型配置")
-                        .font(.headline)
-                        .foregroundStyle(Color(.labelColor))
-                }
+                Label("AI 模型", systemImage: "cpu")
+                    .font(.headline)
                 .padding(.bottom, 8)
                 .accessibilityElement(children: .combine)
                 .accessibilityAddTraits(.isHeader)
@@ -528,20 +401,8 @@ struct RedmineSettingsTab: View {
                         }
                 }
             } header: {
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(Color.cyan.opacity(0.15))
-                        .frame(width: 28, height: 28)
-                        .overlay(
-                            Image(systemName: "clock.fill")
-                                .font(.system(size: 12))
-                                .foregroundStyle(Color.cyan)
-                        )
-
-                    Text("Redmine 工时配置")
-                        .font(.headline)
-                        .foregroundStyle(Color(.labelColor))
-                }
+                Label("Redmine 工时", systemImage: "clock")
+                    .font(.headline)
                 .padding(.bottom, 8)
                 .accessibilityElement(children: .combine)
                 .accessibilityAddTraits(.isHeader)
@@ -723,20 +584,8 @@ struct EmailSettingsTab: View {
                     .accessibilityLabel("高级 SMTP 设置")
                 }
             } header: {
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(Color.blue.opacity(0.15))
-                        .frame(width: 28, height: 28)
-                        .overlay(
-                            Image(systemName: "envelope.fill")
-                                .font(.system(size: 12))
-                                .foregroundStyle(Color.blue)
-                        )
-
-                    Text("邮件日报配置")
-                        .font(.headline)
-                        .foregroundStyle(Color(.labelColor))
-                }
+                Label("邮件日报", systemImage: "envelope")
+                    .font(.headline)
                 .padding(.bottom, 8)
                 .accessibilityElement(children: .combine)
                 .accessibilityAddTraits(.isHeader)
