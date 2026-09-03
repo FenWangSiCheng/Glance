@@ -529,10 +529,14 @@ struct TodoItemRow: View {
                         Text(milestone)
                             .font(.caption)
                             .fontWeight(.medium)
-                            .foregroundStyle(AppTheme.accentStrong)
+                            .foregroundStyle(AppTheme.textSecondary)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(AppTheme.accentSoft, in: RoundedRectangle(cornerRadius: 4))
+                            .background(AppTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: 4))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 4)
+                                    .stroke(AppTheme.divider, lineWidth: 1)
+                            }
                     }
                 }
 

@@ -2,9 +2,24 @@ import AppKit
 import SwiftUI
 
 enum AppTheme {
-    static let accent = Color(hex: "4D83C4")
-    static let accentStrong = Color(hex: "3268A8")
-    static let accentSoft = Color(light: "EAF1F9", dark: "22354A")
+    static let accent = Color(
+        light: "3B73B1",
+        dark: "78B4EE",
+        highContrastLight: "2A5F99",
+        highContrastDark: "9BCBFA"
+    )
+    static let accentStrong = Color(
+        light: "24588F",
+        dark: "A8D2FA",
+        highContrastLight: "174872",
+        highContrastDark: "C2DFFF"
+    )
+    static let accentSoft = Color(
+        light: "E8F1FA",
+        dark: "26394D",
+        highContrastLight: "DCEAF7",
+        highContrastDark: "1F3346"
+    )
 
     static let background = Color(light: "F4F5F7", dark: "1C1D1F")
     static let surface = Color(light: "FCFCFD", dark: "282A2D")
@@ -80,9 +95,36 @@ extension Color {
 
     init(light lightHex: String, dark darkHex: String) {
         self.init(
+            light: lightHex,
+            dark: darkHex,
+            highContrastLight: lightHex,
+            highContrastDark: darkHex
+        )
+    }
+
+    init(
+        light lightHex: String,
+        dark darkHex: String,
+        highContrastLight highContrastLightHex: String,
+        highContrastDark highContrastDarkHex: String
+    ) {
+        self.init(
             nsColor: NSColor(name: nil) { appearance in
-                let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-                return NSColor(Color(hex: isDark ? darkHex : lightHex))
+                switch appearance.bestMatch(from: [
+                    .accessibilityHighContrastDarkAqua,
+                    .accessibilityHighContrastAqua,
+                    .darkAqua,
+                    .aqua,
+                ]) {
+                case .accessibilityHighContrastDarkAqua:
+                    return NSColor(Color(hex: highContrastDarkHex))
+                case .accessibilityHighContrastAqua:
+                    return NSColor(Color(hex: highContrastLightHex))
+                case .darkAqua:
+                    return NSColor(Color(hex: darkHex))
+                default:
+                    return NSColor(Color(hex: lightHex))
+                }
             }
         )
     }
