@@ -135,6 +135,7 @@ struct TodosDetailView: View {
                 if viewModel.todoItems.isEmpty && newTodoText.isEmpty {
                     emptyState
                 } else {
+                    listHeading
                     todosList
                 }
             }
@@ -251,6 +252,21 @@ struct TodosDetailView: View {
         .accessibilityLabel("待办清单视图")
     }
 
+    private var listHeading: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text("所有待办")
+                .font(AppTheme.FontStyle.heading)
+                .foregroundStyle(AppTheme.textPrimary)
+                .accessibilityAddTraits(.isHeader)
+            Spacer()
+            Text("\(viewModel.todoItems.count) 项")
+                .font(AppTheme.FontStyle.caption)
+                .foregroundStyle(AppTheme.textSecondary)
+                .monospacedDigit()
+        }
+        .padding(.bottom, -AppTheme.Spacing.small)
+    }
+
     private var addTodoBar: some View {
         HStack(spacing: AppTheme.Spacing.medium) {
             Image(systemName: "plus")
@@ -304,7 +320,7 @@ struct TodosDetailView: View {
     }
 
     private var todosList: some View {
-        LazyVStack(spacing: AppTheme.Spacing.small) {
+        LazyVStack(spacing: 0) {
             ForEach(viewModel.todoItems) { item in
                 TodoItemRow(
                     item: item,
@@ -333,7 +349,17 @@ struct TodosDetailView: View {
                         editingTodo = nil
                     }
                 )
+                if item.id != viewModel.todoItems.last?.id {
+                    Divider()
+                        .padding(.leading, 64)
+                }
             }
+        }
+        .background(AppTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.medium, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppTheme.Radius.medium, style: .continuous)
+                .stroke(AppTheme.divider, lineWidth: 1)
         }
     }
 
@@ -409,12 +435,8 @@ struct TodoItemRow: View {
             }
         }
         .padding(AppTheme.Spacing.medium)
-        .background(AppTheme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.medium, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppTheme.Radius.medium, style: .continuous)
-                .stroke(AppTheme.divider.opacity(item.isCompleted ? 0.45 : 0.8), lineWidth: 1)
-        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(item.isCompleted ? AppTheme.surfaceRaised.opacity(0.35) : AppTheme.surface)
         .accessibilityElement(children: .contain)
     }
 

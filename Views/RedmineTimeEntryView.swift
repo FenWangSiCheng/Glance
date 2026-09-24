@@ -63,6 +63,7 @@ struct RedmineTimeEntryView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.large) {
+                pageHeader
                 formSection
                 pendingListSection
             }
@@ -165,6 +166,34 @@ struct RedmineTimeEntryView: View {
         } message: {
             Text("将提交 \(viewModel.pendingTimeEntries.count) 条工时记录到 Redmine")
         }
+    }
+
+    private var pageHeader: some View {
+        HStack(alignment: .bottom) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("REDMINE")
+                    .font(AppTheme.FontStyle.caption)
+                    .tracking(1.5)
+                    .foregroundStyle(AppTheme.accentStrong)
+
+                Text("工时管理")
+                    .font(AppTheme.FontStyle.display)
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .accessibilityAddTraits(.isHeader)
+
+                Text("整理工作记录，确认后提交")
+                    .font(AppTheme.FontStyle.body)
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
+
+            Spacer()
+
+            Text("\(viewModel.pendingTimeEntries.count) 条待提交")
+                .font(AppTheme.FontStyle.subheading)
+                .monospacedDigit()
+                .foregroundStyle(AppTheme.accentStrong)
+        }
+        .padding(.top, AppTheme.Spacing.small)
     }
 
     // MARK: - Form Section

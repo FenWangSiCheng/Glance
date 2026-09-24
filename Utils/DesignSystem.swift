@@ -21,7 +21,7 @@ enum AppTheme {
         highContrastDark: "1F3346"
     )
 
-    static let background = Color(light: "F4F5F7", dark: "1C1D1F")
+    static let background = Color(nsColor: .windowBackgroundColor)
     static let surface = Color(light: "FCFCFD", dark: "282A2D")
     static let surfaceRaised = Color(light: "FFFFFF", dark: "303236")
     static let textPrimary = Color(light: "24262A", dark: "F2F3F5")
@@ -29,7 +29,12 @@ enum AppTheme {
     static let divider = Color(light: "DEE1E6", dark: "41444A")
 
     static let success = Color(light: "437A59", dark: "71B889")
-    static let warning = Color(light: "B7792A", dark: "E4A954")
+    static let warning = Color(
+        light: "925D1C",
+        dark: "E4A954",
+        highContrastLight: "754710",
+        highContrastDark: "FFD08B"
+    )
     static let danger = Color(light: "B94A48", dark: "E77A76")
 
     enum Spacing {
