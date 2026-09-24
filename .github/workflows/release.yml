@@ -27,8 +27,10 @@ jobs:
           xcodebuild -project Glance.xcodeproj \
             -scheme Glance \
             -configuration Release \
+            -destination 'generic/platform=macOS' \
             -derivedDataPath build \
-            -arch arm64 \
+            ARCHS='arm64 x86_64' \
+            ONLY_ACTIVE_ARCH=NO \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
